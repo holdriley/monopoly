@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Монополия онлайн</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f4f4f1;--fg:#1d1d1b;--muted:#6c6c66;--card:#ffffff;--line:#dcdcd5;
+  --sq:#ffffff;--sq2:#f0f0ec;--frame:#cfcfc7;--btn:#f0f0ec;--pill:#eeeee9;
+  --accent:#2f62d9;--ok:#2e7d4f;--danger:#c0392b;--warn:#b7791f;
+  --shadow:0 1px 2px rgba(0,0,0,.06);
+  --topbar:44px;--sidew:400px;
+  --bs:max(300px,min(calc(100dvh - var(--topbar) - 18px),calc(100vw - var(--sidew) - 32px)));
+  --u:calc(var(--bs)/100);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141414;--fg:#ebebe7;--muted:#9a9a93;--card:#1d1d1c;--line:#333330;
+    --sq:#232322;--sq2:#2b2b29;--frame:#0c0c0c;--btn:#2b2b29;--pill:#2a2a28;
+    --accent:#7aa2ff;--ok:#4cb37a;--danger:#e5675a;--warn:#e0a83b;
+    --shadow:0 1px 2px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141414;--fg:#ebebe7;--muted:#9a9a93;--card:#1d1d1c;--line:#333330;
+  --sq:#232322;--sq2:#2b2b29;--frame:#0c0c0c;--btn:#2b2b29;--pill:#2a2a28;
+  --accent:#7aa2ff;--ok:#4cb37a;--danger:#e5675a;--warn:#e0a83b;
+  --shadow:0 1px 2px rgba(0,0,0,.5);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);min-height:100vh;
+  font:500 15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+b,strong{font-weight:700}
+/* ---- кнопки ---- */
+.btn{background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:9px 15px;font-weight:600;transition:background .12s,transform .06s}
+.btn:hover:not(:disabled){background:color-mix(in srgb,var(--btn) 90%,var(--fg))}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.primary:hover:not(:disabled){background:color-mix(in srgb,var(--fg) 88%,var(--bg))}
+.btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.ok:hover:not(:disabled){background:color-mix(in srgb,var(--ok) 90%,#000)}
+.btn.danger{background:transparent;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+.btn.ghost{background:transparent;color:var(--muted)}
+.btn.sm{padding:4px 10px;font-size:12.5px;border-radius:8px}
+.btn.big{font-size:16px;padding:13px 20px;border-radius:12px;width:100%}
+input[type=text],input[type=number]{font:inherit;font-weight:600;color:inherit;background:var(--sq);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;outline:none}
+input[type=text]:focus,input[type=number]:focus{border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.note{color:var(--muted);font-size:13px;margin:6px 0}
+h1,h2,h3{margin:0}
+h3{font-weight:700}
+/* ---- вход и лобби ---- */
+#entry,#lobby{max-width:460px;margin:0 auto;padding:30px 16px}
+.hero{text-align:center;margin-bottom:18px}
+.hero h1{font-size:clamp(30px,9vw,40px);font-weight:700;line-height:1.1;text-transform:uppercase;letter-spacing:.14em}
+.hero p{color:var(--muted);margin:8px 0 0}
+.floaties{display:none}
+.row{display:flex;gap:8px;margin:10px 0}
+.stack>*+*{margin-top:10px}
+hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.codebig{font-size:40px;letter-spacing:.2em;font-weight:700;text-align:center;cursor:pointer;user-select:all;padding:6px 0 6px .2em;border-radius:10px;background:var(--pill);font-variant-numeric:tabular-nums}
+.slots{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.slot{border-radius:12px;padding:9px 11px;display:flex;align-items:center;gap:10px;min-height:62px;background:var(--pill);min-width:0}
+.slot.empty{border:1px dashed var(--line);background:transparent;color:var(--muted);justify-content:center;text-align:center;font-size:13px}
+.slot .nmb{min-width:0;flex:1}.slot .nmb b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .tk{width:40px;height:40px;font-size:22px}
+/* ---- игра ---- */
+#game{padding:10px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;max-width:1280px;margin:0 auto}
+.topbar{display:flex;align-items:center;gap:8px;max-width:1280px;margin:0 auto 8px;flex-wrap:wrap;min-height:34px}
+.topbar .sp{flex:1}
+.brand{font-weight:700;font-size:15px;letter-spacing:.14em;text-transform:uppercase}
+.chipcode{font-weight:700;letter-spacing:.12em;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 11px}
+#bwrap{display:block}
+#bframe{position:relative;width:var(--bs);height:var(--bs)}
+#board{display:grid;grid-template-columns:1.6fr repeat(9,1fr) 1.6fr;grid-template-rows:1.6fr repeat(9,1fr) 1.6fr;
+  width:var(--bs);height:var(--bs);padding:calc(var(--u)*5);gap:calc(var(--u)*.35);border-radius:calc(var(--u)*2.2);overflow:hidden;
+  background:var(--frame);border:1px solid var(--line)}
+.sq{position:relative;background:var(--sq);display:flex;overflow:hidden;border-radius:calc(var(--u)*.6);
+  font-size:clamp(6px,calc(var(--u)*1.25),14px);line-height:1.12;cursor:pointer;min-width:0;min-height:0;text-align:center}
+.sq:hover{background:color-mix(in srgb,var(--sq) 92%,var(--fg))}
+.sq.bottom{flex-direction:column}.sq.top{flex-direction:column-reverse}
+.sq.left{flex-direction:row-reverse}.sq.right{flex-direction:row}
+.band{flex:0 0 20%;display:flex;align-items:center;justify-content:center;gap:1px;flex-wrap:wrap;padding:1px}
+.sq.left .band,.sq.right .band{flex-direction:column;flex:0 0 22%}
+.h{display:block;width:.8em;height:.8em;background:#3a9d5d;border:1px solid #fff;border-radius:2px}
+.h.ho{width:1.5em;background:#c0392b}
+.sbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;min-width:0;word-break:break-word;hyphens:auto;gap:.15em}
+.sbody b{font-weight:700}
+.sbody .pr{color:var(--muted);font-weight:600;font-size:.95em}
+.sbody .big{font-size:2em;line-height:1}
+.sbody .em{font-size:1.6em;line-height:1}
+.sq.t-chance{background:color-mix(in srgb,var(--sq) 86%,#d9962b)}
+.sq.t-chest{background:color-mix(in srgb,var(--sq) 86%,#3b8fd9)}
+.sq.t-tax{background:color-mix(in srgb,var(--sq) 88%,#c0392b)}
+.sq.t-rail,.sq.t-util{background:var(--sq2)}
+.sq.c-go{background:color-mix(in srgb,var(--sq) 80%,#2e9e56)}
+.sq.c-jail{background:color-mix(in srgb,var(--sq) 80%,#e08a2b)}
+.sq.c-park{background:color-mix(in srgb,var(--sq) 80%,#3b82f6)}
+.sq.c-gojail{background:color-mix(in srgb,var(--sq) 80%,#d64545)}
+.sq.mort::after{content:"ЗАЛОГ";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(45deg,rgba(0,0,0,.5) 0 4px,rgba(0,0,0,.3) 4px 8px);color:#fff;font-weight:700;font-size:.95em}
+.sq.here{outline:calc(var(--u)*.4) solid var(--accent);outline-offset:calc(var(--u)*-.4);z-index:2}
+/* фишки */
+#toklayer{position:absolute;inset:0;pointer-events:none;z-index:5}
+.ptok{position:absolute;width:var(--s);height:var(--s);transform:translate(-50%,-50%);transition:left .12s linear,top .12s linear,width .2s,height .2s}
+.pt-in{position:relative;width:100%;height:100%;border-radius:50%;background:var(--c);border:calc(var(--u)*.4) solid #fff;display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pt-in span{font-size:calc(var(--s)*.58);line-height:1}
+.ptok.jl .pt-in{box-shadow:0 0 0 calc(var(--u)*.35) #111,0 0 0 calc(var(--u)*.75) #e6b422}
+.ptok.cur .pt-in{box-shadow:0 0 0 calc(var(--u)*.4) var(--accent),0 2px 8px rgba(0,0,0,.4)}
+.ptok.me .pt-in{outline:calc(var(--u)*.35) dashed var(--fg);outline-offset:calc(var(--u)*.45)}
+.ptok.spot .pt-in{animation:spot .45s ease-in-out 4}
+@keyframes spot{50%{transform:scale(1.6)}}
+.ptag{position:absolute;bottom:calc(100% + var(--u)*.8);left:50%;transform:translateX(-50%);background:var(--c);color:#fff;font-weight:700;white-space:nowrap;
+  font-size:max(9px,calc(var(--u)*1.6));padding:.05em .6em;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.ptag:empty{display:none}
+.center{grid-area:2/2/11/11;border-radius:calc(var(--u)*1.2);background:var(--sq2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--u)*3);padding:calc(var(--u)*2);text-align:center}
+.logo{font-size:calc(var(--u)*5);font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.dice{display:flex;gap:calc(var(--u)*2.4)}
+.die{width:calc(var(--u)*10.5);height:calc(var(--u)*10.5);border-radius:calc(var(--u)*1.8);background:#fbfbf9;border:1px solid #c9c9c1;
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:calc(var(--u)*1.4);
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.die i{display:block}
+.die i.p{background:#1d1d1b;border-radius:50%;margin:14%}
+.dice.rolling .die{animation:tumble .4s ease-out}
+@keyframes tumble{0%{transform:rotate(0) scale(.8)}50%{transform:rotate(90deg) scale(1.05)}100%{transform:rotate(0) scale(1)}}
+.lastlog{font-size:max(9.5px,calc(var(--u)*2));max-width:92%;color:var(--fg);background:var(--sq);border:1px solid var(--line);border-radius:8px;padding:.4em .9em;min-height:2em;display:flex;align-items:center}
+/* ---- сайдбар ---- */
+.sidebar>*+*{margin-top:10px}
+.turnhead{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.tk{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:21px;flex:none;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
+.who{font-weight:700;font-size:16px}
+.sub{color:var(--muted);font-size:13px}
+.yourturn{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;padding:1px 8px;font-size:11.5px;font-weight:700;margin-left:6px;vertical-align:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.btns .btn.big{flex:1 1 100%}
+.pl{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:10px;border:1px solid transparent;flex-wrap:wrap;margin-top:5px;background:var(--pill);cursor:pointer}
+.pl.cur{border-color:var(--accent)}
+.pl.out{opacity:.45;text-decoration:line-through}
+.pl .tk{width:30px;height:30px;font-size:17px}
+.pl .meta{flex:1;min-width:0}
+.pl .meta small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.cash{font-weight:700;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:4px;width:100%;padding-left:40px}
+.chip{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.3);cursor:pointer}
+.chip.m{opacity:.35}
+.badge{font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px;background:var(--pill);border:1px solid var(--line)}
+.badge.red{background:var(--danger);color:#fff;border-color:var(--danger)}
+.grp{margin-top:10px}.grph{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.grph .chip{cursor:default;width:15px;height:15px}
+.hint{color:var(--muted);font-size:12px;width:100%}
+.prow{display:flex;align-items:center;gap:7px;padding:5px 8px;margin-top:4px;border-radius:8px;background:var(--pill);flex-wrap:wrap}
+.prow .pn{flex:1;min-width:110px;font-size:13.5px;font-weight:600}
+.prow .pb{display:flex;gap:4px}
+.loglist{max-height:220px;overflow:auto;font-size:13px}
+.loglist div{padding:3px 2px;border-bottom:1px solid var(--line)}
+.loglist div:first-child{font-weight:700}
+/* ---- окна ---- */
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
+.modal{background:var(--card);border-radius:16px;border:1px solid var(--line);padding:18px;max-width:560px;width:100%;max-height:90dvh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.modal h3{margin-bottom:8px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.cols{grid-template-columns:1fr}}
+.ck{display:flex;align-items:center;gap:7px;padding:3px 0;font-size:13.5px;font-weight:600}
+.ck input{margin:0;accent-color:var(--accent)}
+.ck.dis{opacity:.45}
+.toast{position:fixed;left:50%;bottom:calc(var(--dockpad,18px) + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:11px 16px;border-radius:10px;max-width:min(92vw,520px);z-index:60;box-shadow:0 6px 24px rgba(0,0,0,.3);font-weight:600}
+.toast.cardt{background:var(--card);color:var(--fg);border:1px solid var(--line);border-left:4px solid var(--warn)}
+.toast small{display:block;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-bottom:3px;font-size:11px}
+.winner{text-align:center;padding:6px 0}
+.winner .big{font-size:48px}
+table.rent{border-collapse:collapse;width:100%;font-size:14px}
+table.rent td{padding:4px;border-bottom:1px solid var(--line)}
+table.rent td:last-child{text-align:right;font-weight:700}
+.titlebar{padding:10px;border-radius:10px;color:#fff;font-weight:700;font-size:17px;text-align:center;margin-bottom:10px;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+#tabs{display:none}
+/* ---- широкий экран и планшет-ландшафт ---- */
+@media (min-aspect-ratio:1/1) and (min-width:601px){
+  html,body{height:100%}
+  #game{height:100dvh;overflow:hidden;display:flex;flex-direction:column;padding:6px 14px}
+  .topbar{max-width:none;margin:0 0 6px;flex-wrap:nowrap}
+  .layout{flex:1;min-height:0;max-width:none;margin:0;grid-template-columns:var(--bs) minmax(0,1fr)}
+  .sidebar{overflow-y:auto;min-height:0;padding:0 6px 10px 0}
+}
+@media (min-width:1500px) and (min-aspect-ratio:3/2){
+  .sidebar{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
+  .sidebar>*+*{margin-top:0}
+  #turn{grid-column:1/-1}
+  #mine{grid-column:1;grid-row:2/span 2}
+  #players{grid-column:2;grid-row:2}
+  #logcard{grid-column:2;grid-row:3}
+  .loglist{max-height:32vh}
+}
+/* ---- телефоны и вертикальные экраны ---- */
+@media (max-aspect-ratio:1/1),(max-width:600px){
+  :root{--bs:min(calc(100vw - 8px),720px)}
+  #game{padding:4px 4px var(--dockpad,170px)}
+  .layout{display:block;max-width:none}
+  #bwrap{display:flex;justify-content:center}
+  .topbar{margin:0 auto 6px;gap:6px}
+  #tabs{display:flex;gap:6px;margin:10px auto;max-width:720px}
+  #tabs button{flex:1;padding:10px 6px;font-size:14px}
+  .sidebar{max-width:720px;margin:0 auto}
+  .sidebar>#mine,.sidebar>#players,.sidebar>#logcard{display:none}
+  .sidebar[data-tab=players]>#players,.sidebar[data-tab=mine]>#mine,.sidebar[data-tab=log]>#logcard{display:block}
+  #turn{position:fixed;left:0;right:0;bottom:0;z-index:30;margin:0!important;border-radius:16px 16px 0 0;padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));max-height:46dvh;overflow:auto;box-shadow:0 -4px 18px rgba(0,0,0,.2)}
+  #turn .turnhead{margin-bottom:2px}
+  #turn .btns{margin-top:8px}
+  .sq .nm{display:none}
+  .sq .pr{font-size:max(6.5px,calc(var(--u)*1.7))}
+  .sbody .em{font-size:calc(var(--u)*3.6)}
+  .btn.sm{padding:7px 11px;font-size:13px}
+  .loglist{max-height:none}
+  .modalbg{align-items:flex-end;padding:0}
+  .modal{border-radius:16px 16px 0 0;max-width:none;max-height:88dvh}
+}
+</style>
+</head>
+<body>
+
+<section id="entry" hidden>
+  <div class="hero"><h1>Монополия</h1><p>Игра для 2–6 игроков · онлайн и с ботами</p><div class="floaties"><span>🎩</span><span>🚗</span><span>🐕</span><span>🚢</span><span>🦆</span><span>🐈</span></div></div>
+  <div class="card stack">
+    <label>Ваше имя<input type="text" id="inName" maxlength="16" placeholder="Как вас называть?"></label>
+    <div class="row"><button id="bCreate" class="btn primary" style="flex:1" disabled>Создать онлайн-комнату</button></div>
+    <div class="row"><input type="text" id="inCode" placeholder="Код комнаты" maxlength="4" style="text-transform:uppercase;letter-spacing:.2em"><button id="bJoin" class="btn" disabled>Войти</button></div>
+    <div id="resume"></div>
+    <hr>
+    <button id="bLocal" class="btn ghost" style="width:100%">Играть на одном устройстве (по очереди)</button>
+    <p id="netNote" class="note">Подключаюсь к сервису…</p>
+  </div>
+</section>
+
+<section id="lobby" hidden></section>
+
+<section id="game" hidden>
+  <div class="topbar">
+    <span class="brand">Монополия</span>
+    <span id="roomtag"></span>
+    <span class="sp"></span>
+    <span id="localpick"></span>
+    <button class="btn sm" data-a="rules">Правила</button>
+        <button class="btn sm danger" data-a="exit">Выйти</button>
+  </div>
+  <div class="layout">
+    <div id="bwrap"><div id="bframe"><div id="board"></div><div id="toklayer"></div></div></div>
+    <div id="tabs"></div>
+    <aside class="sidebar" id="side">
+      <div class="card" id="turn"></div>
+      <div class="card" id="mine"></div>
+      <div class="card" id="players"></div>
+      <div class="card" id="logcard"><h3 style="font-size:15px;margin-bottom:6px">Журнал</h3><div class="loglist" id="log"></div></div>
+    </aside>
+  </div>
+</section>
+
+<div id="manageBox"></div>
+<div id="tradeBox"></div>
+<div id="draftBox"></div>
+<div id="infoBox"></div>
+<div id="toast"></div>
+
+<script>
+// ===ENGINE START===
+const rnd=n=>1+Math.floor(Math.random()*n);
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+const clone=o=>JSON.parse(JSON.stringify(o));
+const G_COL={brown:'#8b5a2b',lblue:'#8fd3f4',pink:'#e0559b',orange:'#f28c28',red:'#d9342b',yellow:'#f2d21b',green:'#2e9e56',dblue:'#2457b3'};
+const G_NAME={brown:'Коричневые',lblue:'Голубые',pink:'Розовые',orange:'Оранжевые',red:'Красные',yellow:'Жёлтые',green:'Зелёные',dblue:'Синие'};
+const TOKENS=['🎩','🚗','🐕','🚢','🦆','🐈'];
+const PCOL=['#d9342b','#2f6fe0','#2e9e56','#f28c28','#8e44ad','#139ba0'];
+const pr=(n,p,g,r,h)=>({t:'prop',n,p,g,r,h});
+const B=[
+ {t:'go',n:'СТАРТ'},
+ pr('Каир',60,'brown',[2,10,30,90,160,250],50),
+ {t:'chest',n:'Общественная казна'},
+ pr('Дели',60,'brown',[4,20,60,180,320,450],50),
+ {t:'tax',n:'Подоходный налог',p:200},
+ {t:'rail',n:'Транссиб',p:200},
+ pr('Бангкок',100,'lblue',[6,30,90,270,400,550],50),
+ {t:'chance',n:'Шанс'},
+ pr('Стамбул',100,'lblue',[6,30,90,270,400,550],50),
+ pr('Мехико',120,'lblue',[8,40,100,300,450,600],50),
+ {t:'jail',n:'Тюрьма'},
+ pr('Рио-де-Жанейро',140,'pink',[10,50,150,450,625,750],100),
+ {t:'util',n:'Электрокомпания',p:150},
+ pr('Буэнос-Айрес',140,'pink',[10,50,150,450,625,750],100),
+ pr('Лима',160,'pink',[12,60,180,500,700,900],100),
+ {t:'rail',n:'Восточный экспресс',p:200},
+ pr('Москва',180,'orange',[14,70,200,550,750,950],100),
+ {t:'chest',n:'Общественная казна'},
+ pr('Вена',180,'orange',[14,70,200,550,750,950],100),
+ pr('Прага',200,'orange',[16,80,220,600,800,1000],100),
+ {t:'park',n:'Бесплатная парковка'},
+ pr('Берлин',220,'red',[18,90,250,700,875,1050],150),
+ {t:'chance',n:'Шанс'},
+ pr('Мадрид',220,'red',[18,90,250,700,875,1050],150),
+ pr('Рим',240,'red',[20,100,300,750,925,1100],150),
+ {t:'rail',n:'Синкансэн',p:200},
+ pr('Лондон',260,'yellow',[22,110,330,800,975,1150],150),
+ pr('Париж',260,'yellow',[22,110,330,800,975,1150],150),
+ {t:'util',n:'Водопровод',p:150},
+ pr('Амстердам',280,'yellow',[24,120,360,850,1025,1200],150),
+ {t:'gojail',n:'В тюрьму!'},
+ pr('Сидней',300,'green',[26,130,390,900,1100,1275],200),
+ pr('Сингапур',300,'green',[26,130,390,900,1100,1275],200),
+ {t:'chest',n:'Общественная казна'},
+ pr('Дубай',320,'green',[28,150,450,1000,1200,1400],200),
+ {t:'rail',n:'Глетчер-экспресс',p:200},
+ {t:'chance',n:'Шанс'},
+ pr('Токио',350,'dblue',[35,175,500,1100,1300,1500],200),
+ {t:'tax',n:'Налог на роскошь',p:100},
+ pr('Нью-Йорк',400,'dblue',[50,200,600,1400,1700,2000],200),
+];
+const GROUPS={};B.forEach((s,i)=>{if(s.t==='prop'){(GROUPS[s.g]=GROUPS[s.g]||[]).push(i);}});
+const RAILS=[5,15,25,35],UTILS=[12,28];
+const OWNABLE=['prop','rail','util'];
+const CARDS={
+ chance:[
+  {x:'Отправляйтесь на «Старт». Получите $200.',k:'goto',to:0},
+  {x:'Отправляйтесь в Рим. Если проходите «Старт» — получите $200.',k:'goto',to:24},
+  {x:'Отправляйтесь в Рио-де-Жанейро. Если проходите «Старт» — получите $200.',k:'goto',to:11},
+  {x:'Ближайшая коммунальная компания. Свободна — можно купить; занята — бросьте кубики и заплатите владельцу 10× выпавшее.',k:'nearUtil'},
+  {x:'Ближайшая железная дорога. Свободна — можно купить; занята — заплатите владельцу двойную аренду.',k:'nearRail'},
+  {x:'Банк выплачивает вам дивиденды $50.',k:'cash',a:50},
+  {x:'Освобождение из тюрьмы. Сохраните карточку до нужного момента.',k:'jailcard'},
+  {x:'Вернитесь на 3 клетки назад.',k:'back',n:3},
+  {x:'Отправляйтесь в тюрьму. «Старт» не проходите, $200 не получайте.',k:'gojail'},
+  {x:'Ремонт недвижимости: $25 за каждый дом и $100 за каждый отель.',k:'repair',h:25,o:100},
+  {x:'Штраф за превышение скорости — $15.',k:'cash',a:-15},
+  {x:'Отправляйтесь на Транссиб. Если проходите «Старт» — получите $200.',k:'goto',to:5},
+  {x:'Отправляйтесь в Нью-Йорк.',k:'goto',to:39},
+  {x:'Вас избрали председателем совета. Заплатите каждому игроку по $50.',k:'eachPay',a:50},
+  {x:'Строительный заём созрел. Получите $150.',k:'cash',a:150},
+  {x:'Ближайшая железная дорога. Свободна — можно купить; занята — заплатите владельцу двойную аренду.',k:'nearRail'}
+ ],
+ chest:[
+  {x:'Вперёд на «Старт». Получите $200.',k:'goto',to:0},
+  {x:'Банковская ошибка в вашу пользу. Получите $200.',k:'cash',a:200},
+  {x:'Плата за визит к врачу — $50.',k:'cash',a:-50},
+  {x:'Вы продали акции. Получите $50.',k:'cash',a:50},
+  {x:'Освобождение из тюрьмы. Сохраните карточку до нужного момента.',k:'jailcard'},
+  {x:'Отправляйтесь в тюрьму. «Старт» не проходите, $200 не получайте.',k:'gojail'},
+  {x:'Созрел праздничный фонд. Получите $100.',k:'cash',a:100},
+  {x:'Возврат подоходного налога — $20.',k:'cash',a:20},
+  {x:'У вас день рождения. Получите по $10 от каждого игрока.',k:'eachGet',a:10},
+  {x:'Страховка жизни созрела. Получите $100.',k:'cash',a:100},
+  {x:'Больничные расходы — $100.',k:'cash',a:-100},
+  {x:'Школьный сбор — $50.',k:'cash',a:-50},
+  {x:'Плата за консультацию: получите $25.',k:'cash',a:25},
+  {x:'Ремонт городской инфраструктуры: $40 за каждый дом и $115 за каждый отель.',k:'repair',h:40,o:115},
+  {x:'Вы заняли второе место в конкурсе красоты. Получите $10.',k:'cash',a:10},
+  {x:'Вам досталось наследство — $100.',k:'cash',a:100}
+ ]
+};
+const BOTNAMES=['Бот Вася','Бот Маша','Бот Гоша','Бот Лиза','Бот Петя','Бот Катя'];
+const JAILIDX={chance:CARDS.chance.findIndex(c=>c.k==='jailcard'),chest:CARDS.chest.findIndex(c=>c.k==='jailcard')};
+
+function newGame(code,hostId){
+  return {v:1,rev:0,code,hostId,status:'lobby',players:[],props:{},cur:0,phase:'roll',dd:0,again:false,
+    dice:[1,1],rollId:0,log:[],auction:null,trade:null,debt:null,pendingMove:null,card:null,
+    decks:{chance:[],chest:[]},houses:32,hotels:12,winner:null,tradeSeq:0};
+}
+const P_=(S,id)=>S.players.find(p=>p.id===id);
+const curP=S=>S.players[S.cur];
+const alive=S=>S.players.filter(p=>!p.out);
+function L(S,m){S.log.push(m);if(S.log.length>80)S.log.splice(0,S.log.length-80);}
+function ownedBy(S,id){return Object.keys(S.props).map(Number).filter(i=>S.props[i].owner===id).sort((a,b)=>a-b);}
+function hasSet(S,pid,g){return GROUPS[g].every(i=>S.props[i].owner===pid);}
+function countOwned(S,pid,list){return list.filter(i=>S.props[i].owner===pid).length;}
+function groupBuilt(S,i){const sq=B[i];return sq.t==='prop'&&GROUPS[sq.g].some(j=>S.props[j].houses>0);}
+function unmortCost(i){return Math.ceil(B[i].p/2*1.1);}
+function newPlayer(id,name,ti){
+  return {id,name,ti,color:PCOL[ti],token:TOKENS[ti],cash:1500,pos:0,jail:false,jturns:0,jc:[],out:false};
+}
+function startGame(S){
+  S.players=shuffle(S.players);
+  S.players.forEach(p=>{p.cash=1500;p.pos=0;p.jail=false;p.jturns=0;p.jc=[];p.out=false;});
+  S.props={};B.forEach((s,i)=>{if(OWNABLE.includes(s.t))S.props[i]={owner:null,houses:0,mort:false};});
+  S.decks={chance:shuffle([...Array(16).keys()]),chest:shuffle([...Array(16).keys()])};
+  S.status='playing';S.cur=0;S.phase='roll';S.dd=0;S.again=false;S.houses=32;S.hotels=12;
+  S.auction=null;S.trade=null;S.debt=null;S.pendingMove=null;S.card=null;S.winner=null;S.log=[];
+  L(S,'Игра началась! Первым ходит '+S.players[0].name);
+}
+function rentOf(S,pos,diceSum,opt){
+  opt=opt||{};
+  const sq=B[pos],p=S.props[pos];
+  if(!p||!p.owner||p.mort)return 0;
+  if(sq.t==='prop'){if(p.houses>0)return sq.r[p.houses];return hasSet(S,p.owner,sq.g)?sq.r[0]*2:sq.r[0];}
+  if(sq.t==='rail'){const n=countOwned(S,p.owner,RAILS);return 25*Math.pow(2,n-1)*(opt.railMult||1);}
+  if(sq.t==='util'){const n=countOwned(S,p.owner,UTILS);return diceSum*(opt.util10?10:(n===2?10:4));}
+  return 0;
+}
+function creditTo(S,to,amount){
+  if(to==='bank'||!to)return;
+  if(Array.isArray(to)){const per=amount/to.length;to.forEach(id=>{const q=P_(S,id);if(q)q.cash+=per;});}
+  else{const q=P_(S,to);if(q)q.cash+=amount;}
+}
+function charge(S,pid,amount,to,why){
+  if(amount<=0)return true;
+  const p=P_(S,pid);
+  if(p.cash>=amount){
+    p.cash-=amount;creditTo(S,to,amount);
+    const who=Array.isArray(to)?'всем игрокам':(to==='bank'?'банку':P_(S,to).name);
+    L(S,`${p.name} платит $${amount} (${who}): ${why}`);
+    return true;
+  }
+  S.debt={pid,amount,to,why};S.phase='debt';
+  L(S,`${p.name} должен $${amount} (${why}), но не хватает денег`);
+  return false;
+}
+function passGo(S,p){p.cash+=200;L(S,`${p.name} проходит «Старт»: +$200`);}
+function moveBy(S,p,n){const np=p.pos+n;if(np>=40)passGo(S,p);p.pos=((np%40)+40)%40;}
+function moveTo(S,p,pos,collect){if(collect&&pos<p.pos)passGo(S,p);p.pos=pos;}
+function nearest(pos,list){return list.find(i=>i>pos)!==undefined?list.find(i=>i>pos):list[0];}
+function sendToJail(S,p){p.pos=10;p.jail=true;p.jturns=0;S.again=false;S.dd=0;L(S,`${p.name} отправляется в тюрьму`);}
+function land(S,p,opt){
+  opt=opt||{};
+  const sq=B[p.pos];
+  switch(sq.t){
+    case 'gojail':sendToJail(S,p);return;
+    case 'tax':charge(S,p.id,sq.p,'bank',sq.n);return;
+    case 'chance':case 'chest':drawCard(S,p,sq.t);return;
+    case 'prop':case 'rail':case 'util':{
+      const pr_=S.props[p.pos];
+      if(!pr_.owner){S.phase='buy';return;}
+      if(pr_.owner===p.id||pr_.mort)return;
+      const rent=rentOf(S,p.pos,S.dice[0]+S.dice[1],opt);
+      charge(S,p.id,rent,pr_.owner,`аренда «${sq.n}»`);
+      return;}
+  }
+}
+function drawCard(S,p,deck){
+  const q=S.decks[deck];const idx=q.shift();const c=CARDS[deck][idx];
+  S.card={id:(S.card?S.card.id:0)+1,deck,text:c.x,pid:p.id};
+  L(S,`${p.name} тянет карточку: ${c.x}`);
+  if(c.k==='jailcard'){p.jc.push(deck);return;}
+  q.push(idx);
+  applyCard(S,p,c);
+}
+function applyCard(S,p,c){
+  switch(c.k){
+    case 'goto':moveTo(S,p,c.to,true);land(S,p);break;
+    case 'nearUtil':{
+      const t=nearest(p.pos,UTILS);moveTo(S,p,t,true);
+      const x=S.props[t];
+      if(x.owner&&x.owner!==p.id&&!x.mort){S.dice=[rnd(6),rnd(6)];S.rollId++;land(S,p,{util10:true});}
+      else land(S,p);
+      break;}
+    case 'nearRail':{const t=nearest(p.pos,RAILS);moveTo(S,p,t,true);land(S,p,{railMult:2});break;}
+    case 'cash':if(c.a>=0){p.cash+=c.a;}else charge(S,p.id,-c.a,'bank','карточка');break;
+    case 'back':moveBy(S,p,-c.n);land(S,p);break;
+    case 'gojail':sendToJail(S,p);break;
+    case 'repair':{
+      let h=0,o=0;
+      ownedBy(S,p.id).forEach(i=>{const x=S.props[i].houses;if(x===5)o++;else h+=x;});
+      charge(S,p.id,h*c.h+o*c.o,'bank','ремонт недвижимости');break;}
+    case 'eachPay':{
+      const others=alive(S).filter(q=>q.id!==p.id).map(q=>q.id);
+      charge(S,p.id,c.a*others.length,others,'карточка');break;}
+    case 'eachGet':{
+      alive(S).filter(q=>q.id!==p.id).forEach(q=>{const a=Math.min(q.cash,c.a);q.cash-=a;p.cash+=a;});break;}
+  }
+}
+function settle(S){
+  if(S.status!=='playing')return;
+  if(S.phase==='buy'||S.phase==='debt'||S.phase==='auction')return;
+  const p=curP(S);
+  S.phase=(!p.jail&&S.again)?'roll':'post';
+}
+function nextTurn(S){
+  S.dd=0;S.again=false;
+  let i=S.cur;do{i=(i+1)%S.players.length;}while(S.players[i].out);
+  S.cur=i;S.phase='roll';
+  L(S,`Ход игрока ${S.players[i].name}`);
+}
+function doRoll(S){
+  const p=curP(S);
+  const d1=rnd(6),d2=rnd(6),total=d1+d2,dbl=d1===d2;
+  S.dice=[d1,d2];S.rollId++;S.again=false;
+  L(S,`${p.name} бросает ${d1}+${d2}=${total}${dbl?' (дубль)':''}`);
+  if(p.jail){
+    if(dbl){
+      p.jail=false;p.jturns=0;L(S,`${p.name} выходит из тюрьмы по дублю`);
+      S.phase='moving';moveBy(S,p,total);land(S,p);settle(S);
+    }else{
+      p.jturns++;
+      if(p.jturns>=3){
+        p.jail=false;p.jturns=0;S.pendingMove=total;S.phase='moving';
+        L(S,`${p.name} третий раз не выбросил дубль — платит $50 и идёт`);
+        if(charge(S,p.id,50,'bank','выход из тюрьмы')){S.pendingMove=null;moveBy(S,p,total);land(S,p);}
+        settle(S);
+      }else{S.phase='post';}
+    }
+    return;
+  }
+  if(dbl){
+    S.dd++;
+    if(S.dd>=3){L(S,`${p.name}: три дубля подряд!`);sendToJail(S,p);S.phase='post';return;}
+    S.again=true;
+  }
+  S.phase='moving';moveBy(S,p,total);land(S,p);settle(S);
+}
+// ----- аукцион
+function startAuction(S,pos){S.auction={pos,bid:0,high:null,passed:[]};S.phase='auction';L(S,`Аукцион: «${B[pos].n}»`);}
+function auctionCheck(S){
+  const a=S.auction;if(!a)return;
+  const act=alive(S).filter(p=>!a.passed.includes(p.id));
+  if(a.high){
+    if(act.length<=1){
+      const w=P_(S,a.high);w.cash-=a.bid;S.props[a.pos].owner=w.id;
+      L(S,`${w.name} покупает «${B[a.pos].n}» за $${a.bid}`);
+      S.auction=null;S.phase='moving';settle(S);
+    }
+  }else if(act.length===0){
+    L(S,`«${B[a.pos].n}» осталась непроданной`);
+    S.auction=null;S.phase='moving';settle(S);
+  }
+}
+// ----- постройки/залог
+function canBuild(S,pid,i){
+  const sq=B[i],x=S.props[i],p=P_(S,pid);
+  if(!x||sq.t!=='prop'||x.owner!==pid||!p||p.out)return false;
+  if(!hasSet(S,pid,sq.g))return false;
+  const grp=GROUPS[sq.g];
+  if(grp.some(j=>S.props[j].mort))return false;
+  const h=x.houses;if(h>=5)return false;
+  if(grp.some(j=>S.props[j].houses<h))return false;
+  if(p.cash<sq.h)return false;
+  if(h<4&&S.houses<1)return false;
+  if(h===4&&S.hotels<1)return false;
+  return true;
+}
+function canSell(S,pid,i){
+  const sq=B[i],x=S.props[i];
+  if(!x||sq.t!=='prop'||x.owner!==pid)return false;
+  const h=x.houses;if(h<1)return false;
+  if(GROUPS[sq.g].some(j=>S.props[j].houses>h))return false;
+  if(h===5&&S.houses<4)return false;
+  return true;
+}
+function canMortgage(S,pid,i){
+  const sq=B[i],x=S.props[i];
+  if(!x||x.owner!==pid||x.mort)return false;
+  if(sq.t==='prop'&&GROUPS[sq.g].some(j=>S.props[j].houses>0))return false;
+  return true;
+}
+function canUnmortgage(S,pid,i){
+  const x=S.props[i],p=P_(S,pid);
+  return !!(x&&x.owner===pid&&x.mort&&p&&p.cash>=unmortCost(i));
+}
+// ----- обмен
+function tradeCheck(S,t){
+  const f=P_(S,t.from),o=P_(S,t.to);
+  if(!f||!o||f.out||o.out||f.id===o.id)return 'Неверные участники';
+  if(t.gc<0||t.tc<0)return 'Неверная сумма';
+  if(t.gc>f.cash)return `У ${f.name} не хватает денег`;
+  if(t.tc>o.cash)return `У ${o.name} не хватает денег`;
+  for(const i of t.gp){if(!S.props[i]||S.props[i].owner!==f.id)return 'Нет такой собственности';if(groupBuilt(S,i))return 'Сначала продайте постройки';}
+  for(const i of t.tp){if(!S.props[i]||S.props[i].owner!==o.id)return 'Нет такой собственности';if(groupBuilt(S,i))return 'Сначала продайте постройки';}
+  if(!t.gp.length&&!t.tp.length&&!t.gc&&!t.tc)return 'Пустое предложение';
+  return null;
+}
+function eliminate(S,pid,to){
+  const p=P_(S,pid);if(!p||p.out)return;
+  const wasCur=curP(S).id===pid;
+  const cred=(typeof to==='string'&&to!=='bank')?P_(S,to):null;
+  L(S,`${p.name} банкрот${cred?' — всё имущество переходит игроку '+cred.name:''}`);
+  ownedBy(S,pid).forEach(i=>{
+    const x=S.props[i];
+    if(x.houses>0){
+      if(x.houses===5)S.hotels++;else S.houses+=x.houses;
+      if(cred)p.cash+=Math.floor(B[i].h/2)*x.houses;
+      x.houses=0;
+    }
+  });
+  if(cred){
+    cred.cash+=p.cash;
+    ownedBy(S,pid).forEach(i=>{S.props[i].owner=cred.id;});
+    cred.jc.push(...p.jc);
+  }else{
+    ownedBy(S,pid).forEach(i=>{S.props[i]={owner:null,houses:0,mort:false};});
+    p.jc.forEach(dk=>S.decks[dk].push(JAILIDX[dk]));
+  }
+  p.cash=0;p.jc=[];p.out=true;p.jail=false;
+  if(S.trade&&(S.trade.from===pid||S.trade.to===pid))S.trade=null;
+  S.debt=null;S.pendingMove=null;
+  const left=alive(S);
+  if(left.length<=1){
+    S.status='ended';S.phase='over';S.winner=left[0]?left[0].id:null;
+    if(left[0])L(S,`Победитель — ${left[0].name}!`);
+    return;
+  }
+  if(wasCur)nextTurn(S);
+}
+function applyIntent(S,it){
+  const actor=it.actor,type=it.type,a=it.payload||{};
+  const me=P_(S,actor);
+  // --- лобби
+  if(type==='join'){
+    if(S.status!=='lobby'||S.players.length>=6||me)return;
+    const name=String(a.name||'Игрок').trim().slice(0,16)||'Игрок';
+    const used=S.players.map(p=>p.ti);
+    const ti=[0,1,2,3,4,5].find(i=>!used.includes(i));
+    S.players.push(newPlayer(actor,name,ti));return;
+  }
+  if(type==='leave'){
+    if(S.status==='lobby'&&me&&actor!==S.hostId)S.players=S.players.filter(p=>p.id!==actor);
+    return;
+  }
+  if(type==='addbot'){
+    if(actor!==S.hostId||S.status!=='lobby'||S.players.length>=6)return;
+    const used=S.players.map(p=>p.ti);
+    const ti=[0,1,2,3,4,5].find(i=>!used.includes(i));
+    S.botSeq=(S.botSeq||0)+1;
+    const bp=newPlayer('bot'+S.botSeq,BOTNAMES[(S.botSeq-1)%BOTNAMES.length],ti);
+    bp.bot=true;S.players.push(bp);return;
+  }
+  if(type==='kick'){
+    if(actor!==S.hostId||S.status!=='lobby'||a.id===S.hostId)return;
+    S.players=S.players.filter(p=>p.id!==a.id);return;
+  }
+  if(type==='start'){
+    if(actor!==S.hostId||S.status!=='lobby'||S.players.length<2)return;
+    startGame(S);return;
+  }
+  if(type==='rematch'){
+    if(actor!==S.hostId||S.status!=='ended')return;
+    S.status='lobby';S.props={};S.log=[];S.winner=null;S.phase='roll';
+    S.players=S.players.filter(p=>true);return;
+  }
+  if(type==='drop'){
+    if(actor!==S.hostId||S.status!=='playing'||S.phase==='auction')return;
+    const t=P_(S,a.id);if(!t||t.out||t.id===S.hostId)return;
+    eliminate(S,t.id,'bank');return;
+  }
+  if(S.status!=='playing'||!me||me.out)return;
+  const isCur=curP(S).id===actor;
+  const open=S.phase!=='auction';
+  switch(type){
+    case 'roll':if(!isCur||S.phase!=='roll')return;doRoll(S);break;
+    case 'jailpay':
+      if(!isCur||S.phase!=='roll'||!me.jail||me.cash<50)return;
+      me.cash-=50;me.jail=false;me.jturns=0;L(S,`${me.name} платит $50 и выходит из тюрьмы`);break;
+    case 'jailcard':{
+      if(!isCur||S.phase!=='roll'||!me.jail||!me.jc.length)return;
+      const dk=me.jc.pop();S.decks[dk].push(JAILIDX[dk]);
+      me.jail=false;me.jturns=0;L(S,`${me.name} использует карточку и выходит из тюрьмы`);break;}
+    case 'buy':{
+      if(!isCur||S.phase!=='buy')return;
+      const sq=B[me.pos];if(me.cash<sq.p)return;
+      me.cash-=sq.p;S.props[me.pos].owner=me.id;
+      L(S,`${me.name} покупает «${sq.n}» за $${sq.p}`);
+      S.phase='moving';settle(S);break;}
+    case 'decline':if(!isCur||S.phase!=='buy')return;startAuction(S,me.pos);break;
+    case 'bid':{
+      const au=S.auction;
+      if(S.phase!=='auction'||!au||au.passed.includes(actor))return;
+      const amt=Math.floor(+a.amount);
+      if(!(amt>au.bid)||amt>me.cash)return;
+      au.bid=amt;au.high=actor;L(S,`${me.name}: ставка $${amt}`);auctionCheck(S);break;}
+    case 'pass':{
+      const au=S.auction;
+      if(S.phase!=='auction'||!au||au.high===actor||au.passed.includes(actor))return;
+      au.passed.push(actor);L(S,`${me.name} пасует`);auctionCheck(S);break;}
+    case 'endturn':if(!isCur||S.phase!=='post')return;nextTurn(S);break;
+    case 'pay':{
+      const d=S.debt;
+      if(S.phase!=='debt'||!d||d.pid!==actor||me.cash<d.amount)return;
+      me.cash-=d.amount;creditTo(S,d.to,d.amount);
+      L(S,`${me.name} погасил долг: $${d.amount}`);
+      S.debt=null;S.phase='moving';
+      if(S.pendingMove!=null){const t=S.pendingMove;S.pendingMove=null;moveBy(S,me,t);land(S,me);}
+      settle(S);break;}
+    case 'bankrupt':{
+      const d=S.debt;
+      if(S.phase!=='debt'||!d||d.pid!==actor)return;
+      eliminate(S,actor,d.to);break;}
+    case 'surrender':
+      if(S.phase==='auction')return;
+      eliminate(S,actor,'bank');break;
+    case 'build':{
+      const i=+a.pos;if(!open||!canBuild(S,actor,i))return;
+      const x=S.props[i];me.cash-=B[i].h;
+      if(x.houses<4)S.houses--;else{S.houses+=4;S.hotels--;}
+      x.houses++;L(S,`${me.name} строит на «${B[i].n}» (${x.houses===5?'отель':x.houses+' дом.'})`);break;}
+    case 'sell':{
+      const i=+a.pos;if(!open||!canSell(S,actor,i))return;
+      const x=S.props[i];me.cash+=B[i].h/2;
+      if(x.houses===5){S.hotels++;S.houses-=4;}else S.houses++;
+      x.houses--;L(S,`${me.name} продаёт постройку на «${B[i].n}»`);break;}
+    case 'mortgage':{
+      const i=+a.pos;if(!open||!canMortgage(S,actor,i))return;
+      me.cash+=B[i].p/2;S.props[i].mort=true;L(S,`${me.name} закладывает «${B[i].n}» (+$${B[i].p/2})`);break;}
+    case 'unmortgage':{
+      const i=+a.pos;if(!open||!canUnmortgage(S,actor,i))return;
+      me.cash-=unmortCost(i);S.props[i].mort=false;L(S,`${me.name} выкупает «${B[i].n}» (−$${unmortCost(i)})`);break;}
+    case 'trade':{
+      if(!open||S.trade)return;
+      const ints=arr=>(Array.isArray(arr)?arr:[]).map(Number).filter(n=>Number.isInteger(n));
+      const t={id:++S.tradeSeq,from:actor,to:a.to,gp:ints(a.gp),gc:Math.max(0,Math.floor(+a.gc||0)),tp:ints(a.tp),tc:Math.max(0,Math.floor(+a.tc||0))};
+      if(tradeCheck(S,t))return;
+      S.trade=t;L(S,`${me.name} предлагает обмен игроку ${P_(S,t.to).name}`);break;}
+    case 'trade_no':{
+      const t=S.trade;if(!t||(t.to!==actor&&t.from!==actor))return;
+      L(S,t.from===actor?`${me.name} отзывает предложение обмена`:`${me.name} отклоняет обмен`);S.trade=null;break;}
+    case 'trade_yes':{
+      const t=S.trade;if(!t||t.to!==actor||!open)return;
+      const err=tradeCheck(S,t);if(err){S.trade=null;return;}
+      const f=P_(S,t.from);
+      t.gp.forEach(i=>{S.props[i].owner=t.to;});t.tp.forEach(i=>{S.props[i].owner=t.from;});
+      f.cash+=t.tc-t.gc;me.cash+=t.gc-t.tc;
+      L(S,`Обмен состоялся: ${f.name} ⇄ ${me.name}`);S.trade=null;break;}
+  }
+}
+// ===ENGINE END===
+</script>
+
+<script>
+// ================= UI =================
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const EMO={1:'🐪',3:'🐘',5:'🚆',6:'🍜',8:'🕌',9:'🌮',11:'🏖️',12:'💡',13:'💃',14:'🦙',15:'🚆',16:'🏰',18:'🎻',19:'🍺',21:'🐻',23:'🐂',24:'🏛️',25:'🚆',26:'🎡',27:'🥐',28:'🚰',29:'🌷',31:'🦘',32:'🦁',34:'🏜️',35:'🚆',37:'🗼',39:'🗽'};
+const PIPS=[[],[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
+function dieHTML(n){let h='<div class="die '+(n===1?'one':'')+'">';for(let k=0;k<9;k++)h+=PIPS[n].indexOf(k)>=0?'<i class="p"></i>':'<i></i>';return h+'</div>';}
+const TCLS={chance:'t-chance',chest:'t-chest',tax:'t-tax',rail:'t-rail',util:'t-util',go:'c-go',jail:'c-jail',park:'c-park',gojail:'c-gojail'};
+let manageOpen=false,tab='players';
+let spotId=null,spotT=null,tokEls={},shown={},animTimer=null;
+let mode=null,db=null,userNS=null,myId=null,myName='',online=false;
+let G=null,roomCode=null,roomRef=null,intentsCol=null,unsubRoom=null,unsubIntents=null;
+let queue=[],pumping=false,seen=new Set();
+let localActor=null,lastKey='',lastRoll=null,lastCard=null,firstRender=true,draft=null,askCb=null,toastT=null;
+
+const cellOf=i=>i<=10?[11,11-i]:i<=19?[21-i,1]:i<=30?[1,1+(i-20)]:[1+(i-30),11];
+const sideOf=i=>(i===0||i===10||i===20||i===30)?'corner':i<10?'bottom':i<20?'left':i<30?'top':'right';
+const meId=()=>mode==='local'?(localActor||(G&&G.hostId)):myId;
+const myP=()=>G?P_(G,meId()):null;
+const isHost=()=>G&&(mode==='local'||G.hostId===myId);
+
+function flash(msg,ms){
+  const t=$('#toast');t.innerHTML=`<div class="toast">${esc(msg)}</div>`;
+  clearTimeout(toastT);toastT=setTimeout(()=>{t.innerHTML='';},ms||3500);
+}
+function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);});}
+
+// ---------- сеть (прямое соединение браузеров, WebRTC через PeerJS) ----------
+const PEER_PREFIX='monoru-';
+let peer=null,conns={},hostConn=null,reconnT=null,wantRoom=null,guestName='',connectSeq=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function getPid(){
+  let id=ls.get('mono_pid');
+  if(!id){id='u'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);ls.set('mono_pid',id);}
+  return id;
+}
+function hostOnline(){
+  return Object.keys(conns).map(k=>conns[k]).filter(c=>c.open&&c.__pid).map(c=>c.__pid).concat([myId]);
+}
+function isOffline(p){
+  return mode==='online'&&G&&!p.bot&&p.id!==myId&&G.online&&G.online.indexOf(p.id)<0;
+}
+async function init(){
+  $('#inName').value=ls.get('mono_name')||'';
+  myId=getPid();
+  bindUI();show('entry');
+  online=typeof Peer!=='undefined';
+  $('#bCreate').disabled=!online;$('#bJoin').disabled=!online;
+  $('#netNote').textContent=online
+    ?'Создайте комнату и отправьте друзьям код или ссылку. Игроки соединяются напрямую друг с другом.'
+    :'Не удалось загрузить сетевую библиотеку. Проверьте интернет и отключите блокировщики. Игра на одном устройстве работает.';
+  try{const q=new URLSearchParams(location.search).get('room');if(q)$('#inCode').value=String(q).toUpperCase().slice(0,4);}catch(e){}
+  showResume();
+}
+function showResume(){
+  const lr=ls.get('mono_room'),role=ls.get('mono_role');
+  $('#resume').innerHTML=(online&&lr)?`<button class="btn" style="width:100%" data-a="resume">${role==='host'?'Продолжить свою комнату':'Вернуться в комнату'} ${esc(lr)}</button>`:'';
+}
+function genCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
+function nameVal(){const n=$('#inName').value.trim()||'Игрок';ls.set('mono_name',n);return n.slice(0,16);}
+function netErr(e){
+  const t=e&&e.type;
+  if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed')return 'Нет связи с сервером соединений. Проверьте интернет и попробуйте ещё раз.';
+  if(t==='browser-incompatible')return 'Этот браузер не поддерживает WebRTC.';
+  return 'Сетевая ошибка: '+(t||(e&&e.message)||'неизвестно');
+}
+function teardownNet(){
+  clearTimeout(reconnT);reconnT=null;wantRoom=null;connectSeq++;
+  Object.keys(conns).forEach(k=>{try{conns[k].close();}catch(e){}});conns={};
+  if(hostConn){try{hostConn.close();}catch(e){}hostConn=null;}
+  if(peer){try{peer.destroy();}catch(e){}peer=null;}
+  queue=[];
+}
+// ----- хост
+function startHost(code,saved,name){
+  return new Promise((resolve,reject)=>{
+    teardownNet();
+    let opened=false;
+    const pr=new Peer(PEER_PREFIX+code,{debug:0});
+    peer=pr;
+    pr.on('open',()=>{
+      opened=true;mode='online';roomCode=code;
+      if(saved){G=saved;G.hostId=myId;}
+      else{G=newGame(code,myId);applyIntent(G,{actor:myId,type:'join',payload:{name}});}
+      ls.set('mono_room',code);ls.set('mono_role','host');
+      firstRender=true;saveHost();render();resolve();
+    });
+    pr.on('connection',onGuestConn);
+    pr.on('disconnected',()=>{try{pr.reconnect();}catch(e){}});
+    pr.on('error',e=>{
+      if(!opened){try{pr.destroy();}catch(x){}if(peer===pr)peer=null;reject(e);}
+      else if(e&&e.type!=='peer-unavailable')flash(netErr(e),5000);
+    });
+  });
+}
+function saveHost(){try{ls.set('mono_hs_'+roomCode,JSON.stringify(G));}catch(e){}}
+function onGuestConn(c){
+  c.on('open',()=>{});
+  c.on('data',m=>{
+    if(!m)return;
+    if(m.t==='hello')onHello(c,m);
+    else if(m.t==='intent'&&m.it&&c.__pid){
+      queue.push({data:{t:Date.now(),actor:c.__pid,type:String(m.it.type||''),payload:m.it.payload||{}}});pump();
+    }
+  });
+  c.on('close',()=>{if(conns[c.peer]===c){delete conns[c.peer];netChanged();}});
+  c.on('error',()=>{});
+}
+function onHello(c,m){
+  c.__pid=String(m.pid||'').slice(0,40);c.__name=String(m.name||'Игрок').slice(0,16);
+  if(!c.__pid)return;
+  Object.keys(conns).forEach(k=>{if(conns[k]!==c&&conns[k].__pid===c.__pid){try{conns[k].close();}catch(e){}delete conns[k];}});
+  conns[c.peer]=c;
+  if(G&&G.status==='lobby'&&!P_(G,c.__pid)){
+    queue.push({data:{t:Date.now(),actor:c.__pid,type:'join',payload:{name:c.__name}}});
+  }
+  pump();
+}
+function netChanged(){if(G&&mode==='online'){render();broadcast();}}
+function broadcast(){
+  Object.keys(conns).forEach(k=>{const c=conns[k];try{if(c.open&&c.__pid)c.send({t:'state',S:G});}catch(e){}});
+}
+function pump(){
+  if(pumping||!G||G.hostId!==myId)return;
+  pumping=true;
+  try{
+    while(queue.length){
+      const batch=queue.splice(0).sort((x,y)=>(x.data.t||0)-(y.data.t||0));
+      const S=clone(G);
+      for(const it of batch){try{applyIntent(S,it.data);}catch(e){console.error('intent',e);}}
+      S.rev=(G.rev||0)+1;G=S;
+    }
+    render();saveHost();broadcast();
+  }finally{pumping=false;}
+}
+// ----- гость
+function joinRoom(code){
+  code=String(code||'').toUpperCase().trim();
+  if(code.length!==4){flash('Введите код из 4 символов');return;}
+  if(typeof Peer==='undefined'){flash('Сетевая библиотека не загрузилась');return;}
+  const name=nameVal();
+  teardownNet();
+  mode='online';roomCode=code;wantRoom=code;guestName=name;G=null;firstRender=true;
+  ls.set('mono_room',code);ls.set('mono_role','guest');
+  $('#netNote').textContent='Подключаюсь к комнате '+code+'…';
+  const pr=new Peer({debug:0});
+  peer=pr;
+  pr.on('open',()=>connectHost());
+  pr.on('disconnected',()=>{try{pr.reconnect();}catch(e){}});
+  pr.on('error',e=>{
+    if(peer!==pr)return;
+    if(e&&e.type==='peer-unavailable'){
+      if(!G){failJoin('Комната '+code+' не найдена или хост сейчас не в сети.');}
+      else scheduleReconnect(3000);
+    }else if(!G){failJoin(netErr(e));}
+  });
+}
+function failJoin(msg){
+  teardownNet();mode=null;G=null;roomCode=null;
+  $('#netNote').textContent='';show('entry');flash(msg,7000);showResume();
+}
+function connectHost(){
+  if(!peer||mode!=='online'||!wantRoom||(G&&G.hostId===myId))return;
+  const my=++connectSeq;
+  const c=peer.connect(PEER_PREFIX+wantRoom,{reliable:true,serialization:'json'});
+  hostConn=c;let opened=false;
+  c.on('open',()=>{
+    if(my!==connectSeq)return;
+    opened=true;
+    c.send({t:'hello',pid:myId,name:guestName});
+    render();
+  });
+  c.on('data',m=>{
+    if(my!==connectSeq||!m||m.t!=='state')return;
+    const d=m.S;
+    if(G&&G.code===d.code&&d.rev<G.rev)return;
+    G=d;render();
+  });
+  c.on('close',()=>{if(my===connectSeq){render();scheduleReconnect(3000);}});
+  c.on('error',()=>{if(my===connectSeq)scheduleReconnect(3000);});
+  setTimeout(()=>{
+    if(my===connectSeq&&!opened){
+      try{c.close();}catch(e){}
+      if(!G&&mode==='online')failJoin('Не удаётся соединиться с хостом. Проверьте код. Возможно, хост не в сети или сеть блокирует прямые соединения.');
+      else scheduleReconnect(3000);
+    }
+  },15000);
+}
+function scheduleReconnect(ms){
+  clearTimeout(reconnT);
+  reconnT=setTimeout(()=>{
+    if(mode!=='online'||!wantRoom||(G&&G.hostId===myId))return;
+    if(hostConn&&hostConn.open)return;
+    if(peer&&!peer.destroyed){
+      if(peer.disconnected){try{peer.reconnect();}catch(e){}}
+      connectHost();
+    }else joinRoom(wantRoom);
+  },ms);
+}
+function hostLinked(){return !!(hostConn&&hostConn.open);}
+async function resumeRoom(){
+  const code=ls.get('mono_room'),role=ls.get('mono_role');
+  if(!code)return;
+  if(role==='host'){
+    let saved=null;try{saved=JSON.parse(ls.get('mono_hs_'+code));}catch(e){}
+    if(!saved){flash('Сохранённая игра не найдена');ls.del('mono_room');showResume();return;}
+    flash('Восстанавливаю комнату…',4000);
+    for(let k=0;k<8;k++){
+      try{await startHost(code,saved,nameVal());return;}
+      catch(e){if(e&&e.type==='unavailable-id'){await sleep(2500);continue;}flash(netErr(e),7000);return;}
+    }
+    flash('Код комнаты ещё занят прежним соединением. Подождите минуту и попробуйте снова.',7000);
+  }else joinRoom(code);
+}
+async function createRoom(){
+  const name=nameVal();
+  flash('Создаю комнату…',2500);
+  for(let k=0;k<6;k++){
+    const code=genCode();
+    try{await startHost(code,null,name);return;}
+    catch(e){if(e&&e.type==='unavailable-id')continue;flash(netErr(e),7000);return;}
+  }
+  flash('Не удалось подобрать код комнаты');
+}
+function act(type,payload,actor){
+  payload=payload||{};
+  if(!G)return;
+  if(mode==='local'){
+    let who=actor||localActor||G.hostId;
+    if(!actor){
+      if(['roll','buy','decline','endturn','jailpay','jailcard'].indexOf(type)>=0&&G.status==='playing')who=curP(G).id;
+      else if((type==='pay'||type==='bankrupt')&&G.debt)who=G.debt.pid;
+      else if(['start','addbot','kick','rematch','drop'].indexOf(type)>=0)who=G.hostId;
+    }
+    try{applyIntent(G,{actor:who,type,payload});}catch(e){console.error(e);flash('Ошибка: '+e.message,6000);}
+    G.rev++;render();return;
+  }
+  if(mode==='online'){
+    if(G.hostId===myId){
+      const it={t:Date.now(),actor:(actor&&String(actor).indexOf('bot')===0)?actor:myId,type,payload};
+      queue.push({data:it});pump();
+    }else if(hostConn&&hostConn.open){
+      try{hostConn.send({t:'intent',it:{type,payload}});}catch(e){flash('Не удалось отправить действие');}
+    }else flash('Нет соединения с хостом, переподключаюсь…',3000);
+  }
+}
+function exitGame(forget){
+  clearTokens();
+  manageOpen=false;$('#manageBox').innerHTML='';
+  clearTimeout(botTimer);botTimer=null;
+  teardownNet();G=null;mode=null;
+  if(forget===true){const c=roomCode;ls.del('mono_room');ls.del('mono_role');if(c)ls.del('mono_hs_'+c);}
+  roomCode=null;
+  show('entry');closeBoxes();showResume();
+}
+function leaveSubs(){teardownNet();}
+
+// ---------- события ----------
+function bindUI(){
+  $('#bCreate').onclick=createRoom;
+  $('#bJoin').onclick=()=>joinRoom($('#inCode').value);
+  $('#inCode').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom($('#inCode').value);});
+  $('#bLocal').onclick=()=>{
+    mode='local';G=newGame('LOCAL','L1');G.rev=1;localActor='L1';lastKey='';firstRender=true;
+    applyIntent(G,{actor:'L1',type:'join',payload:{name:nameVal()}});render();
+  };
+  document.addEventListener('click',onClick);
+  document.addEventListener('change',onChange);
+  document.addEventListener('input',onInput);
+}
+function onClick(e){
+  const el=e.target.closest('[data-a]');if(!el||el.disabled)return;
+  if(el.classList&&el.classList.contains&&el.classList.contains('modalbg')&&e.target!==el)return;
+  const a=el.dataset.a,v=el.dataset.v;
+  switch(a){
+    case 'roll':case 'buy':case 'decline':case 'endturn':case 'jailpay':case 'jailcard':case 'pay':case 'pass':act(a);break;
+    case 'bid':act('bid',{amount:+v});break;
+    case 'build':case 'sell':case 'mortgage':case 'unmortgage':act(a,{pos:+v});break;
+    case 'bankrupt':ask('Объявить банкротство? Всё имущество перейдёт кредитору (или банку).',()=>act('bankrupt'));break;
+    case 'surrender':ask('Сдаться и выйти из игры? Ваше имущество вернётся в банк.',()=>act('surrender'));break;
+    case 'sq':showSquare(+v);break;
+    case 'close':closeInfo();break;
+    case 'rules':showRules();break;
+    case 'exit':ask(mode==='online'&&isHost()?'Выйти? У остальных пропадёт связь, пока вы не вернётесь в эту комнату с этого же устройства.':'Выйти из игры? Вернуться в онлайн-комнату можно по коду.',()=>exitGame());break;
+    case 'closeroom':ask('Закрыть комнату? Все игроки будут отключены.',()=>exitGame(true));break;
+    case 'askyes':{const f=askCb;askCb=null;closeInfo();if(f)f();break;}
+    case 'resume':resumeRoom();break;
+    case 'copy':try{navigator.clipboard.writeText(roomCode);flash('Код скопирован');}catch(err){flash('Код: '+roomCode);}break;
+    case 'copylink':{let u='';try{u=location.origin+location.pathname+'?room='+roomCode;}catch(err){u=roomCode;}try{navigator.clipboard.writeText(u);flash('Ссылка скопирована: '+u,5000);}catch(err){flash('Ссылка: '+u,9000);}break;}
+    case 'drop':ask('Исключить этого игрока из партии? Его имущество вернётся в банк.',()=>act('drop',{id:v}));break;
+    case 'start':act('start');break;
+    case 'addbot':act('addbot');break;
+    case 'kick':act('kick',{id:v});break;
+    case 'rematch':act('rematch');break;
+    case 'leave':act('leave');exitGame(true);break;
+    case 'addlocal':{
+      const inp=$('#lname');const n=inp.value.trim();
+      if(!n)return;
+      const id='L'+(G.players.length+1+Math.floor(Math.random()*1000));
+      applyIntent(G,{actor:id,type:'join',payload:{name:n}});G.rev++;render();break;}
+    case 'draft':openDraft();break;
+    case 'tradefor':{const o=G.props[+v]&&G.props[+v].owner;if(o)openDraft({to:o,gp:[],tp:[+v],gc:0,tc:0});break;}
+    case 'tab':tab=v;render();break;
+    case 'spot':{spotId=v;paintTokens();clearTimeout(spotT);spotT=setTimeout(()=>{spotId=null;paintTokens();},2800);break;}
+    case 'manage':manageOpen=true;renderManage();break;
+    case 'mclose':manageOpen=false;$('#manageBox').innerHTML='';break;
+    case 'dsend':{
+      if(!draft)return;
+      act('trade',{to:draft.to,gp:draft.gp,gc:draft.gc,tp:draft.tp,tc:draft.tc});closeDraft();break;}
+    case 'dclose':closeDraft();break;
+    case 'tyes':act('trade_yes',{},G.trade&&G.trade.to);break;
+    case 'tno':act('trade_no',{},G.trade&&G.trade.to);break;
+    case 'tcancel':act('trade_no',{},G.trade&&G.trade.from);break;
+    case 'setactor':break;
+  }
+}
+function onChange(e){
+  const el=e.target;
+  if(el.id==='actorSel'){localActor=el.value;render();return;}
+  if(!draft)return;
+  const d=el.dataset.d;if(!d)return;
+  if(d==='to'){draft.to=el.value;draft.gp=[];draft.tp=[];draft.tc=0;renderDraft();return;}
+  if(d==='gp'||d==='tp'){
+    const i=+el.value,arr=draft[d];
+    if(el.checked){if(!arr.includes(i))arr.push(i);}else draft[d]=arr.filter(x=>x!==i);
+  }
+}
+function onInput(e){
+  const el=e.target;
+  if(draft&&(el.dataset.d==='gc'||el.dataset.d==='tc')){draft[el.dataset.d]=Math.max(0,Math.floor(+el.value||0));}
+}
+
+// ---------- модальные окна ----------
+function closeBoxes(){closeInfo();closeDraft();$('#tradeBox').innerHTML='';}
+function closeInfo(){$('#infoBox').innerHTML='';}
+function ask(text,cb){
+  askCb=cb;
+  $('#infoBox').innerHTML=`<div class="modalbg"><div class="modal"><p style="margin-top:0">${esc(text)}</p><div class="btns" style="justify-content:flex-end"><button class="btn" data-a="close">Отмена</button><button class="btn primary" data-a="askyes">Да</button></div></div></div>`;
+}
+function showRules(){
+  $('#infoBox').innerHTML=`<div class="modalbg" data-a="close"><div class="modal"><h3>Правила</h3>
+  <p class="note" style="margin-top:0">Классические правила, играем до последнего непобеждённого.</p>
+  <ul style="padding-left:18px;margin:6px 0">
+  <li>Старт: $1500 каждому, проход «Старт» — $200.</li>
+  <li>Дубль — бросаете ещё раз, три дубля подряд — в тюрьму.</li>
+  <li>Тюрьма: заплатить $50, использовать карточку или выбросить дубль. После третьей неудачи платите $50 и идёте.</li>
+  <li>Свободный город можно купить; если отказались — аукцион между всеми.</li>
+  <li>Монополия (все города цвета) удваивает аренду пустых участков и открывает постройки: равномерно, до 4 домов, затем отель. В банке 32 дома и 12 отелей.</li>
+  <li>Заложить можно город без построек за половину цены; выкуп — +10%.</li>
+  <li>Обмен любыми городами и деньгами в любой момент (если на цвете нет построек).</li>
+  <li>Не хватает денег — продайте постройки, заложите города или объявите банкротство.</li>
+  </ul>
+  <p class="note">Упрощения: налог фиксированный ($200 / $100), «Бесплатная парковка» без призового фонда, при передаче заложенных городов комиссия 10% не взимается.</p>
+  <div class="btns" style="justify-content:flex-end"><button class="btn primary" data-a="close">Понятно</button></div></div></div>`;
+}
+function showSquare(i){
+  const sq=B[i];if(!G)return;
+  const pr_=G.props&&G.props[i];
+  let h=`<div class="modalbg" data-a="close"><div class="modal" style="max-width:380px">`;
+  if(sq.t==='prop')h+=`<div class="titlebar" style="background:${G_COL[sq.g]}">${EMO[i]||''} ${esc(sq.n)}</div>`;else h+=`<h3>${EMO[i]||''} ${esc(sq.n)}</h3>`;
+  if(sq.t==='prop'){
+    h+=`<table class="rent"><tr><td>Аренда</td><td>$${sq.r[0]}</td></tr><tr><td>С монополией</td><td>$${sq.r[0]*2}</td></tr>`;
+    for(let k=1;k<=4;k++)h+=`<tr><td>${k} ${k===1?'дом':'дома'}</td><td>$${sq.r[k]}</td></tr>`;
+    h+=`<tr><td>Отель</td><td>$${sq.r[5]}</td></tr><tr><td>Цена</td><td>$${sq.p}</td></tr><tr><td>Дом / отель</td><td>$${sq.h}</td></tr><tr><td>Залог</td><td>$${sq.p/2}</td></tr></table>`;
+  }else if(sq.t==='rail'){
+    h+=`<table class="rent"><tr><td>1 дорога</td><td>$25</td></tr><tr><td>2 дороги</td><td>$50</td></tr><tr><td>3 дороги</td><td>$100</td></tr><tr><td>4 дороги</td><td>$200</td></tr><tr><td>Цена</td><td>$${sq.p}</td></tr><tr><td>Залог</td><td>$${sq.p/2}</td></tr></table>`;
+  }else if(sq.t==='util'){
+    h+=`<p>Одна компания: аренда 4× выпавшее на кубиках. Обе: 10×.</p><table class="rent"><tr><td>Цена</td><td>$${sq.p}</td></tr><tr><td>Залог</td><td>$${sq.p/2}</td></tr></table>`;
+  }else if(sq.t==='tax'){h+=`<p>Заплатите банку $${sq.p}.</p>`;}
+  else if(sq.t==='go'){h+=`<p>Каждый проход через «Старт» приносит $200.</p>`;}
+  else if(sq.t==='jail'){h+=`<p>Просто посетили — ничего не происходит. Сидящие здесь игроки отмечены жёлтой рамкой.</p>`;}
+  else if(sq.t==='park'){h+=`<p>Отдыхайте. Ничего не происходит.</p>`;}
+  else if(sq.t==='gojail'){h+=`<p>Отправляйтесь прямо в тюрьму.</p>`;}
+  else if(sq.t==='chance'||sq.t==='chest'){h+=`<p>Возьмите верхнюю карточку колоды.</p>`;}
+  if(pr_){
+    const o=pr_.owner?P_(G,pr_.owner):null;
+    h+=`<p style="margin-bottom:0"><b>${o?'Владелец: '+esc(o.name):'Свободна'}</b>${pr_.mort?' · в залоге':''}${pr_.houses?` · ${pr_.houses===5?'отель':pr_.houses+' дом.'}`:''}</p>`;
+  }
+  h+=`<div class="btns" style="justify-content:flex-end"><button class="btn" data-a="close">Закрыть</button></div></div></div>`;
+  $('#infoBox').innerHTML=h;
+}
+
+// ---------- обмен: черновик ----------
+function openDraft(pre){
+  const me=myP();if(!me||me.out){flash('Обмен доступен только игрокам');return;}
+  const others=alive(G).filter(p=>p.id!==me.id);
+  if(!others.length){flash('Не с кем меняться: других игроков нет');return;}
+  if(G.trade){flash('Уже есть открытое предложение обмена');return;}
+  if(G.phase==='auction'){flash('Во время аукциона обмен недоступен');return;}
+  draft=pre||{to:others[0].id,gp:[],tp:[],gc:0,tc:0};renderDraft();
+}
+function closeDraft(){draft=null;$('#draftBox').innerHTML='';}
+function renderDraft(){
+  if(!draft||!G)return;
+  const me=myP(),o=P_(G,draft.to);
+  const others=alive(G).filter(p=>p.id!==me.id);
+  const plist=(pid,key)=>{
+    const list=ownedBy(G,pid);
+    if(!list.length)return '<p class="note">Нет собственности</p>';
+    return list.map(i=>{
+      const built=groupBuilt(G,i);
+      return `<label class="ck ${built?'dis':''}"><input type="checkbox" data-d="${key}" value="${i}" ${draft[key].includes(i)?'checked':''} ${built?'disabled':''}>${B[i].g?`<span class="chip" style="background:${G_COL[B[i].g]}"></span>`:'<span>🚉</span>'}${esc(B[i].n)}${G.props[i].mort?' <small>(залог)</small>':''}${built?' <small>(постройки)</small>':''}</label>`;
+    }).join('');
+  };
+  let h=`<div class="modalbg"><div class="modal"><h3>Предложить обмен</h3>
+  <div style="margin-bottom:8px">${others.map(p=>`<label class="ck" style="display:inline-flex;margin-right:12px"><input type="radio" name="dto" data-d="to" value="${esc(p.id)}" ${p.id===draft.to?'checked':''}>${p.token} ${esc(p.name)}</label>`).join('')}</div>
+  <div class="cols">
+   <div><b>Вы отдаёте</b>${plist(me.id,'gp')}<label class="note" style="display:block">Деньги (у вас $${me.cash})<input type="number" min="0" max="${me.cash}" data-d="gc" value="${draft.gc}"></label></div>
+   <div><b>Вы получаете от ${esc(o.name)}</b>${plist(o.id,'tp')}<label class="note" style="display:block">Деньги (у него $${o.cash})<input type="number" min="0" max="${o.cash}" data-d="tc" value="${draft.tc}"></label></div>
+  </div>
+  <div class="btns" style="justify-content:flex-end;margin-top:12px"><button class="btn" data-a="dclose">Отмена</button><button class="btn primary" data-a="dsend">Отправить</button></div></div></div>`;
+  $('#draftBox').innerHTML=h;
+}
+function tradeSummary(t){
+  const f=P_(G,t.from),o=P_(G,t.to);
+  const line=(props,cash)=>{
+    const a=props.map(i=>esc(B[i].n));if(cash)a.push('$'+cash);return a.length?a.join(', '):'ничего';
+  };
+  return `<p><b>${esc(f.name)}</b> отдаёт: ${line(t.gp,t.gc)}</p><p><b>${esc(o.name)}</b> отдаёт: ${line(t.tp,t.tc)}</p>`;
+}
+
+// ---------- рендер ----------
+function render(){
+  if(mode==='online'&&G&&G.hostId===myId)G.online=hostOnline();
+  if(!G){
+    if(mode==='online'){show('entry');}
+    return;
+  }
+  if(G.status==='lobby'){show('lobby');clearTokens();renderLobby();return;}
+  show('game');
+  if(mode==='local'){
+    const key=G.status+':'+G.cur+':'+G.phase;
+    if(key!==lastKey){lastKey=key;const c=G.players[G.cur];localActor=(G.phase==='debt'&&G.debt)?G.debt.pid:(c?c.id:localActor);}
+  }
+  renderTop();renderBoard();syncTokens();renderTurn();renderPlayers();renderMine();renderLog();renderTradeBox();
+  if(manageOpen)renderManage();
+  effects();
+  fitDock();
+  scheduleBots();
+}
+function renderLobby(){
+  const S=G,host=isHost();
+  let h=`<div class="hero"><h1>Монополия</h1><div class="floaties"><span>🎩</span><span>🚗</span><span>🐕</span><span>🚢</span><span>🦆</span><span>🐈</span></div></div><div class="card stack">`;
+  if(mode==='online'){
+    h+=`<div class="note" style="text-align:center;margin:0">Код комнаты — отправьте друзьям</div><div class="codebig" data-a="copy">${esc(S.code)}</div><button class="btn sm" data-a="copylink">Скопировать ссылку-приглашение</button>`;
+  }else h+=`<b style="text-align:center;display:block">Игра на одном устройстве</b>`;
+  h+=`<div class="slots">`;
+  for(let k=0;k<6;k++){
+    const p=S.players[k];
+    if(p){
+      h+=`<div class="slot"><span class="tk" style="background:${p.color}">${p.token}</span><div class="nmb"><b>${esc(p.name)}</b><span>${p.id===S.hostId?'<span class="badge">хост</span> ':''}${p.bot?'<span class="badge">🤖 бот</span> ':''}${p.id===myId?'<span class="badge">вы</span>':''}</span></div>${(p.bot||isOffline(p))&&host&&p.id!==S.hostId?`<button class="btn sm danger" data-a="kick" data-v="${esc(p.id)}">×</button>`:''}${isOffline(p)?'<span class="badge">не в сети</span>':''}</div>`;
+    }else if(host)h+=`<div class="slot empty"><button class="btn sm" data-a="addbot">🤖 Добавить бота</button></div>`;
+    else h+=`<div class="slot empty">ждём игрока…</div>`;
+  }
+  h+=`</div>`;
+  if(mode==='local'&&S.players.length<6){
+    h+=`<div class="row"><input type="text" id="lname" maxlength="16" placeholder="Имя игрока"><button class="btn" data-a="addlocal">Добавить</button></div>`;
+  }
+  const inGame=S.players.some(p=>p.id===myId)||mode==='local';
+  if(host)h+=`<button class="btn primary big" data-a="start" ${S.players.length<2?'disabled':''}>Начать игру · ${S.players.length}/6</button>`;
+  else if(inGame)h+=`<p class="note" style="text-align:center">Ждём, пока хост начнёт игру…</p>`;
+  else h+=`<p class="note">Заявка отправлена. Если вас нет в списке — хост ещё не в сети.</p>`;
+  if(!host&&inGame&&mode==='online')h+=`<button class="btn ghost" data-a="leave">Покинуть комнату</button>`;
+  if(host&&mode==='online')h+=`<button class="btn ghost" data-a="closeroom">Закрыть комнату</button>`;
+  if(mode==='local')h+=`<button class="btn ghost" data-a="exit">Назад</button>`;
+  h+=`</div>`;
+  $('#lobby').innerHTML=h;
+}
+function renderTabs(){
+  $('#tabs').innerHTML=[['players','Игроки'],['mine','Собственность'],['log','Журнал']].map(t=>`<button class="btn ${tab===t[0]?'primary':''}" data-a="tab" data-v="${t[0]}">${t[1]}</button>`).join('');
+  $('#side').dataset.tab=tab;
+}
+function fitDock(){
+  try{
+    if(window.matchMedia&&window.matchMedia('(max-aspect-ratio:1/1),(max-width:600px)').matches){
+      document.documentElement.style.setProperty('--dockpad',($('#turn').offsetHeight+16)+'px');
+    }else document.documentElement.style.removeProperty('--dockpad');
+  }catch(e){}
+}
+function renderTop(){
+  renderTabs();
+  $('#roomtag').innerHTML=mode==='online'?`<span class="chipcode" data-a="copy" style="cursor:pointer" title="Скопировать">${esc(G.code)}</span> <span class="badge">${isHost()?'🟢 хост · игроков в сети: '+hostOnline().length:(hostLinked()?'🟢 подключено':'🔴 переподключение…')}</span>`:'<span class="badge">локально</span>';
+  if(mode==='local'){
+    $('#localpick').innerHTML=`<label class="note" style="margin:0">Действует: <select id="actorSel" style="font:inherit;background:var(--card);color:inherit;border:1px solid var(--line);border-radius:8px;padding:3px">${alive(G).map(p=>`<option value="${esc(p.id)}" ${p.id===localActor?'selected':''}>${p.token} ${esc(p.name)}</option>`).join('')}</select></label>`;
+  }else $('#localpick').innerHTML='';
+}
+function houseHTML(n){
+  if(n===5)return '<i class="h ho"></i>';
+  return '<i class="h"></i>'.repeat(n);
+}
+// ---------- фишки на поле ----------
+const TPAD=5,TGAP=.35,TFR=(100-2*TPAD-10*TGAP)/12.2;
+function tileCenter(i){
+  const rc=cellOf(i);
+  const ctr=k=>{const sz=[1.6,1,1,1,1,1,1,1,1,1,1.6].map(f=>f*TFR);let x=TPAD;for(let j=0;j<k-1;j++)x+=sz[j]+TGAP;return x+sz[k-1]/2;};
+  return [ctr(rc[1]),ctr(rc[0])];
+}
+function clearTokens(){
+  tokEls={};shown={};
+  if(animTimer){clearInterval(animTimer);animTimer=null;}
+  try{$('#toklayer').innerHTML='';}catch(e){}
+}
+function syncTokens(){
+  if(!G||G.status==='lobby'||!document.createElement)return;
+  G.players.forEach(p=>{if(shown[p.id]===undefined)shown[p.id]=p.pos;});
+  startAnim();paintTokens();
+}
+function startAnim(){
+  if(animTimer)return;
+  const need=()=>G&&G.players.some(p=>!p.out&&shown[p.id]!==undefined&&shown[p.id]!==p.pos);
+  if(!need())return;
+  animTimer=setInterval(()=>{
+    if(!need()){clearInterval(animTimer);animTimer=null;paintTokens();return;}
+    G.players.forEach(p=>{
+      if(p.out)return;const sp=shown[p.id];if(sp===undefined||sp===p.pos)return;
+      const fwd=(p.pos-sp+40)%40;
+      const jump=(p.jail&&p.pos===10)||fwd>24;
+      shown[p.id]=jump?p.pos:(sp+1)%40;
+    });
+    paintTokens();
+  },120);
+}
+function paintTokens(){
+  const layer=$('#toklayer');
+  if(!layer||!G||G.status==='lobby'||!document.createElement)return;
+  const S=G,groups={};
+  S.players.forEach(p=>{
+    if(p.out)return;
+    const pos=shown[p.id]!==undefined?shown[p.id]:p.pos;
+    (groups[pos]=groups[pos]||[]).push(p);
+  });
+  const alivIds={};
+  const curId=S.status==='playing'?curP(S).id:null;
+  Object.keys(groups).forEach(pos=>{
+    const list=groups[pos],n=list.length,ctr=tileCenter(+pos),ip=+pos;
+    const side=ip<=10?'b':ip<=19?'l':ip<=30?'t':'r';
+    const span=(ip%10===0)?1.6*TFR:TFR;
+    const base=n===1?4.6:4.2;
+    const step=Math.max(2.2,Math.min(base*0.92,span*1.1/n));
+    list.forEach((p,k)=>{
+      alivIds[p.id]=1;
+      const isCur=p.id===curId,isMe=mode==='online'&&p.id===myId;
+      const sz=isCur?4.9:base;
+      const off=(k-(n-1)/2)*step;
+      let x,y;
+      if(side==='b'){x=ctr[0]+off;y=100-TPAD/2;}
+      else if(side==='t'){x=ctr[0]+off;y=TPAD/2;}
+      else if(side==='l'){x=TPAD/2;y=ctr[1]+off;}
+      else{x=100-TPAD/2;y=ctr[1]+off;}
+      let t=tokEls[p.id];
+      if(!t){
+        const el=document.createElement('div'),inn=document.createElement('div'),em=document.createElement('span'),tag=document.createElement('div');
+        inn.className='pt-in';tag.className='ptag';inn.appendChild(em);el.appendChild(inn);el.appendChild(tag);layer.appendChild(el);
+        t=tokEls[p.id]={el:el,em:em,tag:tag};
+      }
+      t.em.textContent=p.token;
+      t.el.className='ptok'+(isCur?' cur':'')+(isMe?' me':'')+(spotId===p.id?' spot':'')+(p.jail?' jl':'');
+      t.el.style.left=x+'%';t.el.style.top=y+'%';
+      t.el.style.setProperty('--s','calc(var(--u)*'+sz+')');
+      t.el.style.setProperty('--c',p.color);
+      t.el.style.zIndex=spotId===p.id?9:isCur?6:isMe?5:3;
+      t.tag.textContent=spotId===p.id?(p.name+(isMe?' · вы':'')):'';
+    });
+  });
+  Object.keys(tokEls).forEach(id=>{if(!alivIds[id]){const t=tokEls[id];if(t.el.remove)t.el.remove();delete tokEls[id];delete shown[id];}});
+}
+function renderBoard(){
+  const S=G;let h='';
+  for(let i=0;i<40;i++){
+    const sq=B[i],[r,c]=cellOf(i),side=sideOf(i),x=S.props[i];
+    let band='',body='';
+    const em=EMO[i]?`<span class="em">${EMO[i]}</span>`:'';
+    if(sq.t==='prop'){band=`<div class="band" style="background:${G_COL[sq.g]}">${houseHTML(x.houses)}</div>`;body=`${em}<b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;}
+    else if(sq.t==='rail'||sq.t==='util')body=`${em}<b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;
+    else if(sq.t==='chance')body=`<span class="big">❓</span><b>Шанс</b>`;
+    else if(sq.t==='chest')body=`<span class="big">🎁</span><b>Казна</b>`;
+    else if(sq.t==='tax')body=`<span class="big">💸</span><b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;
+    else if(sq.t==='go')body=`<span class="big">🏁</span><b>СТАРТ</b><span class="pr">+$200</span>`;
+    else if(sq.t==='jail')body=`<span class="big">🔒</span><b>Тюрьма</b><span class="pr">в гостях</span>`;
+    else if(sq.t==='park')body=`<span class="big">🅿️</span><b>Парковка</b>`;
+    else if(sq.t==='gojail')body=`<span class="big">👮</span><b>В тюрьму!</b>`;
+    const here=S.status==='playing'&&curP(S).pos===i;
+    const owner=x&&x.owner?P_(S,x.owner):null;
+    h+=`<div class="sq ${side} ${TCLS[sq.t]||''} ${x&&x.mort?'mort':''} ${here?'here':''}" data-a="sq" data-v="${i}" style="grid-row:${r};grid-column:${c};${owner?`box-shadow:inset 0 0 0 .35em ${owner.color}`:''}">${band}<div class="sbody">${body}</div></div>`;
+  }
+  const last=S.log.length?S.log[S.log.length-1]:'';
+  h+=`<div class="center"><div class="logo">Монополия</div><div class="dice" id="dice">${dieHTML(S.dice[0])}${dieHTML(S.dice[1])}</div><div class="lastlog">${esc(last)}</div></div>`;
+  $('#board').innerHTML=h;
+}
+function phaseLabel(S){
+  return ({roll:'Бросок кубиков',buy:'Покупка города',auction:'Аукцион',debt:'Нужно заплатить долг',post:'Можно торговать, строить и закончить ход',over:'Игра окончена',moving:'…'})[S.phase]||'';
+}
+function renderTurn(){
+  const S=G,cp=curP(S),me=myP(),mine=!!(me&&me.id===cp.id&&!me.out);
+  let h='';
+  if(S.status==='ended'){
+    const w=P_(S,S.winner);
+    h=`<div class="winner"><div class="big">🏆</div><h2>${w?esc(w.name):'Никто'} побеждает!</h2></div>`;
+    if(isHost())h+=`<div class="btns" style="justify-content:center"><button class="btn primary" data-a="rematch">Сыграть ещё</button></div>`;
+    $('#turn').innerHTML=h;return;
+  }
+  h+=`<div class="turnhead"><span class="tk" style="background:${cp.color}">${cp.token}</span><div><div class="who">${esc(cp.name)}${mine?' <span class="yourturn">ваш ход</span>':''}</div><div class="sub">${phaseLabel(S)}</div></div></div>`;
+  const wait=`<p class="note">Ждём: ${esc(cp.name)}</p>`;
+  switch(S.phase){
+    case 'roll':
+      if(mine){
+        h+=`<div class="btns">`;
+        if(cp.jail){
+          h+=`<span class="note" style="width:100%;margin:0">Вы в тюрьме (попытка ${cp.jturns+1} из 3)</span>`;
+          h+=`<button class="btn" data-a="jailpay" ${cp.cash<50?'disabled':''}>Заплатить $50</button>`;
+          if(cp.jc.length)h+=`<button class="btn" data-a="jailcard">Карточка «Выйти»</button>`;
+          h+=`<button class="btn primary" data-a="roll">Бросить (дубль = свобода)</button>`;
+        }else{
+          if(S.again)h+=`<span class="note" style="width:100%;margin:0">Дубль! Бросайте ещё раз</span>`;
+          h+=`<button class="btn primary big" data-a="roll">🎲 Бросить кубики</button>`;
+        }
+        h+=`</div>`;
+      }else h+=wait;
+      break;
+    case 'buy':{
+      const sq=B[cp.pos];
+      if(mine){
+        h+=`<p style="margin:4px 0">Купить «<b>${esc(sq.n)}</b>» за $${sq.p}?</p><div class="btns"><button class="btn ok big" data-a="buy" ${cp.cash<sq.p?'disabled':''}>Купить за $${sq.p}</button><button class="btn" data-a="decline">На аукцион</button></div>`;
+      }else h+=`<p class="note">${esc(cp.name)} решает, покупать ли «${esc(sq.n)}» ($${sq.p})</p>`;
+      break;}
+    case 'auction':{
+      const au=S.auction,sq=B[au.pos],hi=au.high?P_(S,au.high):null;
+      h+=`<p style="margin:4px 0">Аукцион: «<b>${esc(sq.n)}</b>» (цена $${sq.p})</p><p style="margin:4px 0">Ставка: <b>$${au.bid}</b>${hi?` — ${esc(hi.name)}`:' — пока нет'}</p>`;
+      const pass=au.passed.map(id=>P_(S,id)).filter(Boolean).map(p=>p.name);
+      if(pass.length)h+=`<p class="note">Спасовали: ${esc(pass.join(', '))}</p>`;
+      if(me&&!me.out&&!au.passed.includes(me.id)){
+        const base=au.bid,opts=base===0?[10,50,100,200]:[base+10,base+50,base+100];
+        h+=`<div class="btns">${opts.map(v=>`<button class="btn sm" data-a="bid" data-v="${v}" ${v>me.cash?'disabled':''}>$${v}</button>`).join('')}`;
+        h+=`<button class="btn sm danger" data-a="pass" ${au.high===me.id?'disabled':''}>Пас</button></div>`;
+        if(au.high===me.id)h+=`<p class="note">Ваша ставка лидирует</p>`;
+      }
+      break;}
+    case 'debt':{
+      const d=S.debt,dp=P_(S,d.pid);
+      const to=Array.isArray(d.to)?'игрокам':(d.to==='bank'?'банку':P_(S,d.to).name);
+      if(me&&me.id===d.pid){
+        h+=`<p style="margin:4px 0">Вы должны <b>$${d.amount}</b> (${esc(to)}): ${esc(d.why)}. Продайте постройки или заложите города, затем платите.</p><div class="btns"><button class="btn ok" data-a="pay" ${me.cash<d.amount?'disabled':''}>Заплатить $${d.amount}</button><button class="btn danger" data-a="bankrupt">Банкрот</button></div>`;
+      }else h+=`<p class="note">${esc(dp.name)} должен $${d.amount} (${esc(to)}) и собирает деньги</p>`;
+      break;}
+    case 'post':
+      if(mine)h+=`<div class="btns"><button class="btn primary big" data-a="endturn">Закончить ход ➜</button></div>`;else h+=wait;
+      break;
+  }
+  if(S.trade&&me&&S.trade.from===me.id){
+    h+=`<p class="note" style="margin-top:10px">Ваше предложение обмена ждёт ответа.</p><button class="btn sm" data-a="tcancel">Отозвать</button>`;
+  }
+  if(me&&!me.out){
+    h+=`<div class="btns" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><button class="btn sm" data-a="manage">🏠 Постройки и залог</button><button class="btn sm" data-a="draft" ${S.phase==='auction'?'disabled':''}>🤝 Обмен</button><button class="btn sm danger" data-a="surrender" ${S.phase==='auction'?'disabled':''}>Сдаться</button></div>`;
+  }else if(!me)h+=`<p class="note">Вы наблюдатель.</p>`;
+  $('#turn').innerHTML=h;
+}
+function renderPlayers(){
+  const S=G;
+  let h=`<h3 style="font-size:15px;margin-bottom:4px">Игроки</h3>`;
+  S.players.forEach((p,idx)=>{
+    const props=ownedBy(S,p.id);
+    const nw=p.cash;
+    h+=`<div class="pl ${S.status==='playing'&&S.cur===idx&&!p.out?'cur':''} ${p.out?'out':''}" data-a="spot" data-v="${esc(p.id)}"><span class="tk" style="background:${p.color}">${p.token}</span><div class="meta"><b>${esc(p.name)}</b>${p.bot?' 🤖':''}${p.id===myId||(mode==='local'&&p.id===localActor)?' <span class="badge">вы</span>':''}${p.id===S.hostId&&mode==='online'?' <span class="badge">хост</span>':''}${p.jail?' <span class="badge red">тюрьма</span>':''}${p.jc.length?` <span class="badge">🎫×${p.jc.length}</span>`:''}${isOffline(p)&&!p.out?' <span class="badge">не в сети</span>':''}<small>${p.out?'банкрот':esc(B[p.pos].n)}</small></div>${isHost()&&mode==='online'&&isOffline(p)&&!p.out&&S.status==='playing'?`<button class="btn sm danger" data-a="drop" data-v="${esc(p.id)}" ${S.phase==='auction'?'disabled':''}>Исключить</button>`:''}<div class="cash">$${nw}</div>`;
+    if(props.length)h+=`<div class="chips">${props.map(i=>`<span class="chip ${S.props[i].mort?'m':''}" data-a="sq" data-v="${i}" title="${esc(B[i].n)}" style="background:${B[i].g?G_COL[B[i].g]:(B[i].t==='rail'?'#555':'#aaa')}"></span>`).join('')}</div>`;
+    h+=`</div>`;
+  });
+  $('#players').innerHTML=h;
+}
+function buildHint(S,pid,i){
+  const sq=B[i],x=S.props[i],p=P_(S,pid);
+  if(sq.t!=='prop'||canBuild(S,pid,i))return '';
+  const grp=GROUPS[sq.g];
+  if(!hasSet(S,pid,sq.g))return '';
+  if(grp.some(j=>S.props[j].mort))return 'Снимите залог со всей группы, чтобы строить';
+  if(x.houses>=5)return 'Достигнут максимум — отель';
+  if(grp.some(j=>S.props[j].houses<x.houses))return 'Стройте равномерно: сначала на других городах группы';
+  if(p.cash<sq.h)return `Не хватает денег: дом стоит $${sq.h}`;
+  if(x.houses<4&&S.houses<1)return 'В банке закончились дома';
+  if(x.houses===4&&S.hotels<1)return 'В банке закончились отели';
+  return '';
+}
+function propsHTML(S,me,hints){
+  const open=S.phase!=='auction';
+  const order=Object.keys(G_COL).concat(['rail','util']);
+  let h='';
+  order.forEach(g=>{
+    const grp=GROUPS[g]||(g==='rail'?RAILS:UTILS);
+    const mine=grp.filter(i=>S.props[i].owner===me.id);
+    if(!mine.length)return;
+    const isProp=!!GROUPS[g],full=mine.length===grp.length;
+    const title=g==='rail'?'Железные дороги':g==='util'?'Коммунальные':G_NAME[g];
+    h+=`<div class="grp"><div class="grph"><span class="chip" style="background:${G_COL[g]||'#666'}"></span><b>${title}</b> <span class="note" style="margin:0">${mine.length}/${grp.length}${isProp&&full?' · монополия ⭐ можно строить':''}</span></div>`;
+    if(isProp&&!full){
+      grp.filter(i=>S.props[i].owner!==me.id).forEach(i=>{
+        const o=S.props[i].owner?P_(S,S.props[i].owner):null;
+        h+=`<div class="prow"><span class="hint" style="width:auto;flex:1">Нужно для монополии: «${esc(B[i].n)}» ${o?'— у '+esc(o.name):'— свободна'}</span>${o&&!o.out?`<button class="btn sm" data-a="tradefor" data-v="${i}">Выменять</button>`:''}</div>`;
+      });
+    }
+    mine.forEach(i=>{
+      const sq=B[i],x=S.props[i];
+      const st=x.mort?' <span class="badge">залог</span>':(x.houses?` ${x.houses===5?'🏨':'🏠×'+x.houses}`:'');
+      h+=`<div class="prow"><span class="pn" data-a="sq" data-v="${i}" style="cursor:pointer">${esc(sq.n)}${st}</span><span class="pb">`;
+      if(sq.t==='prop'){
+        h+=`<button class="btn sm" data-a="build" data-v="${i}" title="Построить ($${sq.h})" ${open&&canBuild(S,me.id,i)?'':'disabled'}>+ $${sq.h}</button>`;
+        h+=`<button class="btn sm" data-a="sell" data-v="${i}" title="Продать постройку (+$${sq.h/2})" ${open&&canSell(S,me.id,i)?'':'disabled'}>−</button>`;
+      }
+      if(x.mort)h+=`<button class="btn sm" data-a="unmortgage" data-v="${i}" ${open&&canUnmortgage(S,me.id,i)?'':'disabled'}>Выкуп $${unmortCost(i)}</button>`;
+      else h+=`<button class="btn sm" data-a="mortgage" data-v="${i}" ${open&&canMortgage(S,me.id,i)?'':'disabled'}>Залог +$${sq.p/2}</button>`;
+      h+=`</span>`;
+      if(hints){const t=buildHint(S,me.id,i);if(t)h+=`<span class="hint">${esc(t)}</span>`;}
+      h+=`</div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
+}
+function renderMine(){
+  const S=G,me=myP(),box=$('#mine');
+  if(!me||me.out||S.status!=='playing'){box.hidden=true;return;}
+  box.hidden=false;
+  const list=ownedBy(S,me.id);
+  let h=`<h3 style="font-size:15px;margin-bottom:4px">Ваша собственность <span class="cash" style="float:right">$${me.cash}</span></h3>`;
+  if(!list.length)h+=`<p class="note">Пока ничего нет. Покупайте города, когда на них попадаете.</p>`;
+  else h+=propsHTML(S,me,true)+`<p class="note">Строить можно только когда у вас есть все города одного цвета, равномерно, и не во время аукциона.</p>`;
+  box.innerHTML=h;
+}
+function renderManage(){
+  const S=G,me=myP(),box=$('#manageBox');
+  if(!manageOpen||!S||!me||me.out||S.status!=='playing'){box.innerHTML='';if(!me||!S||S.status!=='playing')manageOpen=false;return;}
+  const list=ownedBy(S,me.id);
+  box.innerHTML=`<div class="modalbg" data-a="mclose"><div class="modal"><h3>Постройки и залог <span class="cash" style="float:right">$${me.cash}</span></h3>${list.length?propsHTML(S,me,true):'<p class="note">У вас пока нет собственности.</p>'}<p class="note">В банке: домов ${S.houses}, отелей ${S.hotels}.</p><div class="btns" style="justify-content:flex-end"><button class="btn primary" data-a="mclose">Готово</button></div></div></div>`;
+}
+function renderLog(){
+  const S=G;
+  $('#log').innerHTML=S.log.slice().reverse().slice(0,40).map(m=>`<div>${esc(m)}</div>`).join('');
+}
+function renderTradeBox(){
+  const S=G,t=S.trade,box=$('#tradeBox');
+  const me=myP();
+  const show_=t&&((mode==='local'&&!P_(S,t.to).bot)||(me&&t.to===me.id));
+  if(!show_){box.innerHTML='';return;}
+  const f=P_(S,t.from),o=P_(S,t.to);
+  box.innerHTML=`<div class="modalbg"><div class="modal"><h3>Предложение обмена</h3><p class="note" style="margin-top:0">${esc(f.name)} → ${esc(o.name)}</p>${tradeSummary(t)}<div class="btns" style="justify-content:flex-end"><button class="btn danger" data-a="tno">Отклонить</button><button class="btn ok" data-a="tyes">Принять</button></div></div></div>`;
+}
+function effects(){
+  const S=G;
+  if(firstRender){lastRoll=S.rollId;lastCard=S.card?S.card.id:null;firstRender=false;return;}
+  if(S.rollId!==lastRoll){
+    lastRoll=S.rollId;const d=$('#dice');if(d){d.classList.add('rolling');setTimeout(()=>d.classList.remove('rolling'),550);}
+  }
+  if(S.card&&S.card.id!==lastCard){
+    lastCard=S.card.id;
+    const p=P_(S,S.card.pid);
+    $('#toast').innerHTML=`<div class="toast cardt"><small>${S.card.deck==='chance'?'Шанс':'Общественная казна'} · ${p?esc(p.name):''}</small>${esc(S.card.text)}</div>`;
+    clearTimeout(toastT);toastT=setTimeout(()=>{$('#toast').innerHTML='';},6000);
+  }
+}
+// ---------- боты ----------
+let botTimer=null,botSig='',botFails=0,botTradeTurn={};
+function setLacks(S,pid,pos){
+  const g=B[pos].g;if(!g)return false;
+  return GROUPS[g].filter(j=>S.props[j].owner===pid).length===GROUPS[g].length-1&&S.props[pos].owner!==pid;
+}
+function tradeValue(S,props,cash,toPid){
+  let v=cash;
+  props.forEach(i=>{v+=B[i].p*(S.props[i].mort?0.5:1);if(toPid&&setLacks(S,toPid,i))v+=150;});
+  return v;
+}
+function evalTrade(S,t){
+  const gets=tradeValue(S,t.gp,t.gc,t.to);
+  let gives=tradeValue(S,t.tp,t.tc,null);
+  t.tp.forEach(i=>{if(setLacks(S,t.from,i))gives+=250;});
+  return gets>=gives*1.1;
+}
+function botStep(){
+  const S=G;if(!S||S.status!=='playing')return null;
+  const t=S.trade;
+  if(t){const o=P_(S,t.to);if(o&&o.bot&&!o.out)return {actor:o.id,type:evalTrade(S,t)?'trade_yes':'trade_no',payload:{}};}
+  if(S.phase==='auction'){
+    const au=S.auction,sq=B[au.pos];
+    for(const p of alive(S)){
+      if(!p.bot||au.passed.includes(p.id)||au.high===p.id)continue;
+      let val=sq.p*0.9;
+      if(sq.g&&GROUPS[sq.g].filter(j=>S.props[j].owner===p.id).length===GROUPS[sq.g].length-1)val=sq.p*1.5;
+      const nb=au.bid+10;
+      if(nb<=val&&nb<=p.cash-50)return {actor:p.id,type:'bid',payload:{amount:nb}};
+      return {actor:p.id,type:'pass',payload:{}};
+    }
+    return null;
+  }
+  const c=curP(S);if(!c||!c.bot||c.out)return null;
+  const mk=(type,payload)=>({actor:c.id,type,payload:payload||{}});
+  switch(S.phase){
+    case 'roll':
+      if(c.jail){
+        if(c.jc.length)return mk('jailcard');
+        if(c.cash>500&&c.jturns>=1)return mk('jailpay');
+      }
+      return mk('roll');
+    case 'buy':{
+      const sq=B[c.pos],completes=sq.g&&GROUPS[sq.g].filter(j=>S.props[j].owner===c.id).length===GROUPS[sq.g].length-1;
+      if(c.cash>=sq.p&&(c.cash-sq.p>=200||completes))return mk('buy');
+      return mk('decline');}
+    case 'debt':{
+      const d=S.debt;
+      if(c.cash>=d.amount)return mk('pay');
+      const list=ownedBy(S,c.id);
+      for(const i of list)if(canSell(S,c.id,i))return mk('sell',{pos:i});
+      for(const i of list)if(canMortgage(S,c.id,i))return mk('mortgage',{pos:i});
+      return mk('bankrupt');}
+    case 'post':{
+      const list=ownedBy(S,c.id);
+      for(const i of list)if(S.props[i].mort&&c.cash>=unmortCost(i)+300)return mk('unmortgage',{pos:i});
+      let best=null;
+      for(const i of list)if(canBuild(S,c.id,i)&&c.cash>=B[i].h+250){if(best===null||S.props[i].houses<S.props[best].houses)best=i;}
+      if(best!==null)return mk('build',{pos:best});
+      if(S.trade&&S.trade.from===c.id)return null;
+      if(!S.trade&&botTradeTurn[c.id]!==S.rollId){
+        for(const g in GROUPS){
+          const grp=GROUPS[g];
+          if(grp.filter(j=>S.props[j].owner===c.id).length!==grp.length-1)continue;
+          const miss=grp.find(j=>S.props[j].owner!==c.id),o=S.props[miss].owner;
+          if(!o||P_(S,o).out||c.cash<B[miss].p+450)continue;
+          const offer=Math.min(B[miss].p+300,c.cash-150);
+          return mk('trade',{to:o,gp:[],gc:offer,tp:[miss],tc:0});
+        }
+      }
+      return mk('endturn');}
+  }
+  return null;
+}
+function scheduleBots(){
+  if(botTimer||!G||G.status!=='playing'||!isHost())return;
+  const s=botStep();if(!s)return;
+  const sig=JSON.stringify([s,G.phase,G.cur,G.log.length]);
+  if(sig===botSig)botFails++;else{botFails=0;botSig=sig;}
+  if(botFails>=3)return;
+  botTimer=setTimeout(()=>{
+    botTimer=null;if(!G)return;
+    const s2=botStep();if(!s2)return;
+    if(s2.type==='trade')botTradeTurn[s2.actor]=G.rollId;
+    act(s2.type,s2.payload,s2.actor);
+  },750);
+}
+document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId&&!hostLinked())scheduleReconnect(200);}catch(e){}});
+window.addEventListener('error',e=>{try{flash('Ошибка в игре: '+(e.message||'неизвестно'),8000);}catch(x){}});
+init();
+</script>
+</body>
+</html>
