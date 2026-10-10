@@ -84,7 +84,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 #bwrap{display:block}
 #bframe{position:relative;width:var(--bs);height:var(--bs)}
 #board{display:grid;grid-template-columns:1.6fr repeat(9,1fr) 1.6fr;grid-template-rows:1.6fr repeat(9,1fr) 1.6fr;
-  width:var(--bs);height:var(--bs);padding:calc(var(--u)*var(--rail,6.5));gap:calc(var(--u)*.35);border-radius:calc(var(--u)*2.2);overflow:hidden;
+  width:var(--bs);height:var(--bs);padding:calc(var(--u)*.6);gap:calc(var(--u)*.35);border-radius:calc(var(--u)*2.2);overflow:hidden;
   background:var(--frame);border:1px solid var(--line)}
 .sq{position:relative;background:var(--sq);display:flex;overflow:hidden;border-radius:calc(var(--u)*.6);
   font-size:clamp(6px,calc(var(--u)*1.25),14px);line-height:1.12;cursor:pointer;min-width:0;min-height:0;text-align:center}
@@ -99,7 +99,6 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .sbody b{font-weight:700}
 .sbody .pr{color:var(--muted);font-weight:600;font-size:.95em}
 .sbody .big{font-size:2em;line-height:1}
-.sbody .em{font-size:1.6em;line-height:1}
 .sq.t-chance{background:color-mix(in srgb,var(--sq) 86%,#d9962b)}
 .sq.t-chest{background:color-mix(in srgb,var(--sq) 86%,#3b8fd9)}
 .sq.t-tax{background:color-mix(in srgb,var(--sq) 88%,#c0392b)}
@@ -113,7 +112,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 /* фишки */
 #toklayer{position:absolute;inset:0;pointer-events:none;z-index:5}
 .ptok{position:absolute;width:var(--s);height:var(--s);transform:translate(-50%,-50%);transition:left .12s linear,top .12s linear,width .2s,height .2s}
-.pt-in{position:relative;width:100%;height:100%;border-radius:50%;background:var(--c);border:calc(var(--u)*.4) solid #fff;display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pt-in{position:relative;width:100%;height:100%;border-radius:50%;background:var(--c);border:calc(var(--u)*.35) solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5)}
 .pt-in span{font-size:calc(var(--s)*.62);line-height:1}
 .ptok.jl .pt-in{box-shadow:0 0 0 calc(var(--u)*.35) #111,0 0 0 calc(var(--u)*.75) #e6b422}
 .ptok.cur .pt-in{box-shadow:0 0 0 calc(var(--u)*.4) var(--accent),0 2px 8px rgba(0,0,0,.4)}
@@ -222,7 +221,6 @@ table.rent td:last-child{text-align:right;font-weight:700}
   .sq .nm{display:none}
   .sq .sn{display:block;font-size:max(6.5px,calc(var(--u)*1.8));line-height:1.1}
   .sq .pr{font-size:max(6.5px,calc(var(--u)*1.7))}
-  .sbody .em{font-size:calc(var(--u)*3.6)}
   .btn.sm{padding:7px 11px;font-size:13px}
   .loglist{max-height:none}
   .modalbg{align-items:flex-end;padding:0}
@@ -233,7 +231,7 @@ table.rent td:last-child{text-align:right;font-weight:700}
 <body>
 
 <section id="entry" hidden>
-  <div class="hero"><h1>Монополия</h1><p>Игра для 2–6 игроков · онлайн и с ботами</p><div class="floaties"><span>🎩</span><span>🚗</span><span>🐕</span><span>🚢</span><span>🦆</span><span>🐈</span></div></div>
+  <div class="hero"><h1>Монополия</h1><p>Игра для 2–6 игроков · онлайн и с ботами</p></div>
   <div class="card stack">
     <label>Ваше имя<input type="text" id="inName" maxlength="16" placeholder="Как вас называть?"></label>
     <div class="row"><button id="bCreate" class="btn primary" style="flex:1" disabled>Создать онлайн-комнату</button></div>
@@ -281,7 +279,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 const clone=o=>JSON.parse(JSON.stringify(o));
 const G_COL={brown:'#8b5a2b',lblue:'#8fd3f4',pink:'#e0559b',orange:'#f28c28',red:'#d9342b',yellow:'#f2d21b',green:'#2e9e56',dblue:'#2457b3'};
 const G_NAME={brown:'Коричневые',lblue:'Голубые',pink:'Розовые',orange:'Оранжевые',red:'Красные',yellow:'Жёлтые',green:'Зелёные',dblue:'Синие'};
-const TOKENS=['🎩','🚗','🐕','🚢','🦆','🐈'];
+const TOKENS=['','','','','',''];
 const PCOL=['#d9342b','#2f6fe0','#2e9e56','#f28c28','#8e44ad','#139ba0'];
 const pr=(n,p,g,r,h)=>({t:'prop',n,p,g,r,h});
 const B=[
@@ -1148,7 +1146,7 @@ function renderDraft(){
     }).join('');
   };
   let h=`<div class="modalbg"><div class="modal"><h3>Предложить обмен</h3>
-  <div style="margin-bottom:8px">${others.map(p=>`<label class="ck" style="display:inline-flex;margin-right:12px"><input type="radio" name="dto" data-d="to" value="${esc(p.id)}" ${p.id===draft.to?'checked':''}>${p.token} ${esc(p.name)}</label>`).join('')}</div>
+  <div style="margin-bottom:8px">${others.map(p=>`<label class="ck" style="display:inline-flex;margin-right:12px"><input type="radio" name="dto" data-d="to" value="${esc(p.id)}" ${p.id===draft.to?'checked':''}> ${esc(p.name)}</label>`).join('')}</div>
   <div class="cols">
    <div><b>Вы отдаёте</b>${plist(me.id,'gp')}<label class="note" style="display:block">Деньги (у вас $${me.cash})<input type="number" min="0" max="${me.cash}" data-d="gc" value="${draft.gc}"></label></div>
    <div><b>Вы получаете от ${esc(o.name)}</b>${plist(o.id,'tp')}<label class="note" style="display:block">Деньги (у него $${o.cash})<input type="number" min="0" max="${o.cash}" data-d="tc" value="${draft.tc}"></label></div>
@@ -1177,7 +1175,6 @@ function render(){
     const key=G.status+':'+G.cur+':'+G.phase;
     if(key!==lastKey){lastKey=key;const c=G.players[G.cur];localActor=(G.phase==='debt'&&G.debt)?G.debt.pid:(c?c.id:localActor);}
   }
-  RAIL=railFor();try{$('#board').style.setProperty('--rail',RAIL);}catch(e){}
   renderTop();renderBoard();syncTokens();renderTurn();renderPlayers();renderMine();renderLog();renderTradeBox();
   if(manageOpen)renderManage();
   effects();
@@ -1186,7 +1183,7 @@ function render(){
 }
 function renderLobby(){
   const S=G,host=isHost();
-  let h=`<div class="hero"><h1>Монополия</h1><div class="floaties"><span>🎩</span><span>🚗</span><span>🐕</span><span>🚢</span><span>🦆</span><span>🐈</span></div></div><div class="card stack">`;
+  let h=`<div class="hero"><h1>Монополия</h1></div><div class="card stack">`;
   if(mode==='online'){
     h+=`<div class="note" style="text-align:center;margin:0">Код комнаты — отправьте друзьям</div><div class="codebig" data-a="copy">${esc(S.code)}</div><button class="btn sm" data-a="copylink">Скопировать ссылку-приглашение</button>`;
   }else h+=`<b style="text-align:center;display:block">Игра на одном устройстве</b>`;
@@ -1194,7 +1191,7 @@ function renderLobby(){
   for(let k=0;k<6;k++){
     const p=S.players[k];
     if(p){
-      h+=`<div class="slot"><span class="tk" style="background:${p.color}">${p.token}</span><div class="nmb"><b>${esc(p.name)}</b><span>${p.id===S.hostId?'<span class="badge">хост</span> ':''}${p.bot?'<span class="badge">бот</span> ':''}${p.id===myId?'<span class="badge">вы</span>':''}</span></div>${(p.bot||isOffline(p))&&host&&p.id!==S.hostId?`<button class="btn sm danger" data-a="kick" data-v="${esc(p.id)}">×</button>`:''}${isOffline(p)?'<span class="badge">не в сети</span>':''}</div>`;
+      h+=`<div class="slot"><span class="tk" style="background:${p.color}"></span><div class="nmb"><b>${esc(p.name)}</b><span>${p.id===S.hostId?'<span class="badge">хост</span> ':''}${p.bot?'<span class="badge">бот</span> ':''}${p.id===myId?'<span class="badge">вы</span>':''}</span></div>${(p.bot||isOffline(p))&&host&&p.id!==S.hostId?`<button class="btn sm danger" data-a="kick" data-v="${esc(p.id)}">×</button>`:''}${isOffline(p)?'<span class="badge">не в сети</span>':''}</div>`;
     }else if(host)h+=`<div class="slot empty"><button class="btn sm" data-a="addbot">Добавить бота</button></div>`;
     else h+=`<div class="slot empty">ждём игрока…</div>`;
   }
@@ -1227,7 +1224,7 @@ function renderTop(){
   renderTabs();
   $('#roomtag').innerHTML=mode==='online'?`<span class="chipcode" data-a="copy" style="cursor:pointer" title="Скопировать">${esc(G.code)}</span> ${netBadge()}`:'<span class="badge">локально</span>';
   if(mode==='local'){
-    $('#localpick').innerHTML=`<label class="note" style="margin:0">Действует: <select id="actorSel" style="font:inherit;background:var(--card);color:inherit;border:1px solid var(--line);border-radius:8px;padding:3px">${alive(G).map(p=>`<option value="${esc(p.id)}" ${p.id===localActor?'selected':''}>${p.token} ${esc(p.name)}</option>`).join('')}</select></label>`;
+    $('#localpick').innerHTML=`<label class="note" style="margin:0">Действует: <select id="actorSel" style="font:inherit;background:var(--card);color:inherit;border:1px solid var(--line);border-radius:8px;padding:3px">${alive(G).map(p=>`<option value="${esc(p.id)}" ${p.id===localActor?'selected':''}> ${esc(p.name)}</option>`).join('')}</select></label>`;
   }else $('#localpick').innerHTML='';
 }
 function houseHTML(n){
@@ -1235,16 +1232,14 @@ function houseHTML(n){
   return '<i class="h"></i>'.repeat(n);
 }
 // ---------- фишки на поле ----------
-let RAIL=6.5;const TGAP=.35;
-function railFor(){
-  try{return (window.matchMedia&&window.matchMedia('(max-aspect-ratio:1/1),(max-width:600px)').matches)?9:6.5;}catch(e){return 6.5;}
-}
-function tfr(){return (100-2*RAIL-10*TGAP)/12.2;}
-function tileCenter(i){
+const TPAD=.6,TGAP=.35,TFR=(100-2*TPAD-10*TGAP)/12.2;
+function tileRect(i){
   const rc=cellOf(i);
-  const ctr=k=>{const sz=[1.6,1,1,1,1,1,1,1,1,1,1.6].map(f=>f*tfr());let x=RAIL;for(let j=0;j<k-1;j++)x+=sz[j]+TGAP;return x+sz[k-1]/2;};
-  return [ctr(rc[1]),ctr(rc[0])];
+  const sz=[1.6,1,1,1,1,1,1,1,1,1,1.6].map(f=>f*TFR);
+  const st=k=>{let x=TPAD;for(let j=0;j<k-1;j++)x+=sz[j]+TGAP;return x;};
+  return {x0:st(rc[1]),y0:st(rc[0]),w:sz[rc[1]-1],h:sz[rc[0]-1]};
 }
+function tileCenter(i){const r=tileRect(i);return [r.x0+r.w/2,r.y0+r.h/2];}
 function clearTokens(){
   tokEls={};shown={};
   if(animTimer){clearInterval(animTimer);animTimer=null;}
@@ -1282,28 +1277,35 @@ function paintTokens(){
   const alivIds={};
   const curId=S.status==='playing'?curP(S).id:null;
   Object.keys(groups).forEach(pos=>{
-    const list=groups[pos],n=list.length,ctr=tileCenter(+pos),ip=+pos;
+    const list=groups[pos],n=list.length,ip=+pos,R=tileRect(ip);
     const side=ip<=10?'b':ip<=19?'l':ip<=30?'t':'r';
-    const span=(ip%10===0)?1.6*tfr():tfr();
-    const base=n===1?RAIL*.8:RAIL*.7;
-    const step=Math.max(RAIL*.42,Math.min(base*0.92,span*1.1/n));
+    const corner=ip%10===0;
+    const d=n<=2?3.6:3.0;
+    // якорь: нижний (или верхний) край клетки, чтобы не закрывать название
+    let ax,ay,uw;
+    if(corner){ax=R.x0+R.w/2;ay=R.y0+R.h*.72;uw=R.w*.85;}
+    else if(side==='b'){ax=R.x0+R.w/2;ay=R.y0+R.h-2.2;uw=R.w-.4;}
+    else if(side==='t'){ax=R.x0+R.w/2;ay=R.y0+2.2;uw=R.w-.4;}
+    else if(side==='l'){ax=R.x0+R.w*.78/2;ay=R.y0+R.h-2.2;uw=R.w*.78-.4;}
+    else{ax=R.x0+R.w*.22+R.w*.78/2;ay=R.y0+R.h-2.2;uw=R.w*.78-.4;}
+    const rows=n>3?2:1,cnt=[rows===2?Math.ceil(n/2):n,Math.floor(n/2)];
     list.forEach((p,k)=>{
       alivIds[p.id]=1;
       const isCur=p.id===curId,isMe=mode==='online'&&p.id===myId;
-      const sz=isCur?RAIL*.9:base;
-      const off=(k-(n-1)/2)*step;
-      let x,y;
-      if(side==='b'){x=ctr[0]+off;y=100-RAIL/2;}
-      else if(side==='t'){x=ctr[0]+off;y=RAIL/2;}
-      else if(side==='l'){x=RAIL/2;y=ctr[1]+off;}
-      else{x=100-RAIL/2;y=ctr[1]+off;}
+      const r=rows===2&&k>=cnt[0]?1:0,idx=r===0?k:k-cnt[0],c=cnt[r];
+      const step=c>1?Math.min(d*1.1,(uw-d)/(c-1)):0;
+      const x=ax+(idx-(c-1)/2)*step;
+      let y=ay;
+      if(corner)y=ay+(r-(rows-1)/2)*d;
+      else if(side==='t')y=ay+r*d;
+      else y=ay-r*d;
+      const sz=isCur?d+.4:d;
       let t=tokEls[p.id];
       if(!t){
-        const el=document.createElement('div'),inn=document.createElement('div'),em=document.createElement('span'),tag=document.createElement('div');
-        inn.className='pt-in';tag.className='ptag';inn.appendChild(em);el.appendChild(inn);el.appendChild(tag);layer.appendChild(el);
-        t=tokEls[p.id]={el:el,em:em,tag:tag};
+        const el=document.createElement('div'),inn=document.createElement('div'),tag=document.createElement('div');
+        inn.className='pt-in';tag.className='ptag';el.appendChild(inn);el.appendChild(tag);layer.appendChild(el);
+        t=tokEls[p.id]={el:el,tag:tag};
       }
-      t.em.textContent=p.token;
       t.el.className='ptok'+(isCur?' cur':'')+(isMe?' me':'')+(spotId===p.id?' spot':'')+(p.jail?' jl':'');
       t.el.style.left=x+'%';t.el.style.top=y+'%';
       t.el.style.setProperty('--s','calc(var(--u)*'+sz+')');
@@ -1350,7 +1352,7 @@ function renderTurn(){
     if(isHost())h+=`<div class="btns" style="justify-content:center"><button class="btn primary" data-a="rematch">Сыграть ещё</button></div>`;
     $('#turn').innerHTML=h;return;
   }
-  h+=`<div class="turnhead"><span class="tk" style="background:${cp.color}">${cp.token}</span><div><div class="who">${esc(cp.name)}${mine?' <span class="yourturn">ваш ход</span>':''}</div><div class="sub">${phaseLabel(S)}</div></div></div>`;
+  h+=`<div class="turnhead"><span class="tk" style="background:${cp.color}"></span><div><div class="who">${esc(cp.name)}${mine?' <span class="yourturn">ваш ход</span>':''}</div><div class="sub">${phaseLabel(S)}</div></div></div>`;
   const wait=`<p class="note">Ждём: ${esc(cp.name)}</p>`;
   switch(S.phase){
     case 'roll':
@@ -1411,7 +1413,7 @@ function renderPlayers(){
   S.players.forEach((p,idx)=>{
     const props=ownedBy(S,p.id);
     const nw=p.cash;
-    h+=`<div class="pl ${S.status==='playing'&&S.cur===idx&&!p.out?'cur':''} ${p.out?'out':''}" data-a="spot" data-v="${esc(p.id)}"><span class="tk" style="background:${p.color}">${p.token}</span><div class="meta"><b>${esc(p.name)}</b>${p.bot?' <span class="badge">бот</span>':''}${p.id===myId||(mode==='local'&&p.id===localActor)?' <span class="badge">вы</span>':''}${p.id===S.hostId&&mode==='online'?' <span class="badge">хост</span>':''}${p.jail?' <span class="badge red">тюрьма</span>':''}${p.jc.length?` <span class="badge">карта выхода ×${p.jc.length}</span>`:''}${isOffline(p)&&!p.out?' <span class="badge">не в сети</span>':''}<small>${p.out?'банкрот':esc(B[p.pos].n)}</small></div>${isHost()&&mode==='online'&&isOffline(p)&&!p.out&&S.status==='playing'?`<button class="btn sm danger" data-a="drop" data-v="${esc(p.id)}" ${S.phase==='auction'?'disabled':''}>Исключить</button>`:''}<div class="cash">$${nw}</div>`;
+    h+=`<div class="pl ${S.status==='playing'&&S.cur===idx&&!p.out?'cur':''} ${p.out?'out':''}" data-a="spot" data-v="${esc(p.id)}"><span class="tk" style="background:${p.color}"></span><div class="meta"><b>${esc(p.name)}</b>${p.bot?' <span class="badge">бот</span>':''}${p.id===myId||(mode==='local'&&p.id===localActor)?' <span class="badge">вы</span>':''}${p.id===S.hostId&&mode==='online'?' <span class="badge">хост</span>':''}${p.jail?' <span class="badge red">тюрьма</span>':''}${p.jc.length?` <span class="badge">карта выхода ×${p.jc.length}</span>`:''}${isOffline(p)&&!p.out?' <span class="badge">не в сети</span>':''}<small>${p.out?'банкрот':esc(B[p.pos].n)}</small></div>${isHost()&&mode==='online'&&isOffline(p)&&!p.out&&S.status==='playing'?`<button class="btn sm danger" data-a="drop" data-v="${esc(p.id)}" ${S.phase==='auction'?'disabled':''}>Исключить</button>`:''}<div class="cash">$${nw}</div>`;
     if(props.length)h+=`<div class="chips">${props.map(i=>`<span class="chip ${S.props[i].mort?'m':''}" data-a="sq" data-v="${i}" title="${esc(B[i].n)}" style="background:${B[i].g?G_COL[B[i].g]:(B[i].t==='rail'?'#555':'#aaa')}"></span>`).join('')}</div>`;
     h+=`</div>`;
   });
@@ -1593,7 +1595,6 @@ function scheduleBots(){
     act(s2.type,s2.payload,s2.actor);
   },750);
 }
-window.addEventListener('resize',()=>{try{if(G&&G.status!=='lobby'&&railFor()!==RAIL)render();}catch(e){}});
 document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId)sendHello();}catch(e){}});
 window.addEventListener('error',e=>{try{flash('Ошибка в игре: '+(e.message||'неизвестно'),8000);}catch(x){}});
 init();
