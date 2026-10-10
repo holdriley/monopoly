@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Монополия онлайн</title>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <style>
 :root{
   box-sizing:border-box;
@@ -753,29 +753,72 @@ function flash(msg,ms){
 }
 function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);});}
 
-// ---------- сеть (прямое соединение браузеров, WebRTC через PeerJS) ----------
-const PEER_PREFIX='monoru-';
-let peer=null,conns={},hostConn=null,reconnT=null,wantRoom=null,guestName='',connectSeq=0;
+// ---------- сеть: ретрансляция через публичные MQTT-брокеры (WebSocket, работает за NAT) ----------
+const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
+let links=[],hostTimer=null,helloTimer=null,joinTimer=null,badgeTimer=null;
+let wantRoom=null,guestName='',lastHost=0,seenIds=[],lastSeen={},names={},syncAt=0,lastOnSig='';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const topic=k=>'monoru/v2/'+(roomCode||wantRoom)+'/'+k;
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
 function getPid(){
   let id=ls.get('mono_pid');
   if(!id){id='u'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);ls.set('mono_pid',id);}
   return id;
 }
+function anyUp(){return links.some(l=>l.up);}
 function hostOnline(){
-  return Object.keys(conns).map(k=>conns[k]).filter(c=>c.open&&c.__pid).map(c=>c.__pid).concat([myId]);
+  const now=Date.now();
+  return [myId].concat(Object.keys(lastSeen).filter(pid=>pid!==myId&&now-lastSeen[pid]<14000));
 }
 function isOffline(p){
   return mode==='online'&&G&&!p.bot&&p.id!==myId&&G.online&&G.online.indexOf(p.id)<0;
+}
+function hostLinked(){return anyUp()&&Date.now()-lastHost<15000;}
+function netBadge(){
+  if(mode!=='online'||!G)return '';
+  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'🟢':'🔴')+' хост · игроков в сети: '+hostOnline().length+'</span>';
+  return '<span class="badge">'+(hostLinked()?'🟢 подключено':(anyUp()?'🔴 хост не отвечает…':'🔴 нет связи…'))+'</span>';
+}
+function refreshRoomTag(){
+  if(mode!=='online'||!G)return;
+  try{$('#roomtag').innerHTML='<span class="chipcode" data-a="copy" style="cursor:pointer" title="Скопировать">'+esc(G.code)+'</span> '+netBadge();}catch(e){}
+}
+function openLinks(subs,onMsg){
+  closeLinks();
+  links=BROKERS.map(url=>{
+    const L={url,up:false,cli:null};
+    try{
+      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:30});
+      L.cli.on('connect',()=>{L.up=true;subs.forEach(t=>L.cli.subscribe(t,{qos:1}));if(L.onUp)L.onUp();});
+      L.cli.on('close',()=>{L.up=false;});
+      L.cli.on('offline',()=>{L.up=false;});
+      L.cli.on('error',()=>{});
+      L.cli.on('message',(tp,buf)=>{let m=null;try{m=JSON.parse(buf.toString());}catch(e){return;}onMsg(tp,m);});
+    }catch(e){}
+    return L;
+  });
+}
+function closeLinks(){
+  links.forEach(L=>{try{if(L.cli)L.cli.end(false);}catch(e){}});links=[];
+}
+function pub(tp,obj,retain){
+  const s=obj===null?'':JSON.stringify(obj);
+  links.forEach(L=>{if(L.up){try{L.cli.publish(tp,s,{qos:1,retain:!!retain});}catch(e){}}});
+}
+function waitUp(ms){
+  return new Promise(res=>{
+    const t0=Date.now();
+    const iv=setInterval(()=>{if(anyUp()){clearInterval(iv);res(true);}else if(Date.now()-t0>ms){clearInterval(iv);res(false);}},60);
+  });
 }
 async function init(){
   $('#inName').value=ls.get('mono_name')||'';
   myId=getPid();
   bindUI();show('entry');
-  online=typeof Peer!=='undefined';
+  online=typeof mqtt!=='undefined';
   $('#bCreate').disabled=!online;$('#bJoin').disabled=!online;
   $('#netNote').textContent=online
-    ?'Создайте комнату и отправьте друзьям код или ссылку. Игроки соединяются напрямую друг с другом.'
+    ?'Создайте комнату и отправьте друзьям код или ссылку. Игра идёт через публичные серверы связи, работает в любой сети.'
     :'Не удалось загрузить сетевую библиотеку. Проверьте интернет и отключите блокировщики. Игра на одном устройстве работает.';
   try{const q=new URLSearchParams(location.search).get('room');if(q)$('#inCode').value=String(q).toUpperCase().slice(0,4);}catch(e){}
   showResume();
@@ -786,68 +829,63 @@ function showResume(){
 }
 function genCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
 function nameVal(){const n=$('#inName').value.trim()||'Игрок';ls.set('mono_name',n);return n.slice(0,16);}
-function netErr(e){
-  const t=e&&e.type;
-  if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed')return 'Нет связи с сервером соединений. Проверьте интернет и попробуйте ещё раз.';
-  if(t==='browser-incompatible')return 'Этот браузер не поддерживает WebRTC.';
-  return 'Сетевая ошибка: '+(t||(e&&e.message)||'неизвестно');
-}
-function teardownNet(){
-  clearTimeout(reconnT);reconnT=null;wantRoom=null;connectSeq++;
-  Object.keys(conns).forEach(k=>{try{conns[k].close();}catch(e){}});conns={};
-  if(hostConn){try{hostConn.close();}catch(e){}hostConn=null;}
-  if(peer){try{peer.destroy();}catch(e){}peer=null;}
-  queue=[];
+function teardownNet(clearRoom){
+  clearInterval(hostTimer);hostTimer=null;clearInterval(helloTimer);helloTimer=null;clearTimeout(joinTimer);joinTimer=null;clearInterval(badgeTimer);badgeTimer=null;
+  if(clearRoom&&G&&G.hostId===myId&&links.length){try{pub(topic('state'),null,true);}catch(e){}}
+  closeLinks();
+  wantRoom=null;lastSeen={};names={};seenIds=[];queue=[];lastHost=0;
 }
 // ----- хост
-function startHost(code,saved,name){
-  return new Promise((resolve,reject)=>{
-    teardownNet();
-    let opened=false;
-    const pr=new Peer(PEER_PREFIX+code,{debug:0});
-    peer=pr;
-    pr.on('open',()=>{
-      opened=true;mode='online';roomCode=code;
-      if(saved){G=saved;G.hostId=myId;}
-      else{G=newGame(code,myId);applyIntent(G,{actor:myId,type:'join',payload:{name}});}
-      ls.set('mono_room',code);ls.set('mono_role','host');
-      firstRender=true;saveHost();render();resolve();
-    });
-    pr.on('connection',onGuestConn);
-    pr.on('disconnected',()=>{try{pr.reconnect();}catch(e){}});
-    pr.on('error',e=>{
-      if(!opened){try{pr.destroy();}catch(x){}if(peer===pr)peer=null;reject(e);}
-      else if(e&&e.type!=='peer-unavailable')flash(netErr(e),5000);
-    });
-  });
+async function startHost(code,saved,name){
+  teardownNet();
+  roomCode=code;mode='online';
+  let taken=false;
+  hostProbe=()=>{taken=true;};
+  openLinks([topic('up'),topic('state')],onHostMsg);
+  const ok=await waitUp(9000);
+  if(!ok){hostProbe=null;closeLinks();mode=null;roomCode=null;throw {type:'network'};}
+  if(!saved)await sleep(1800);   // ждём «чужую» запись комнаты с этим кодом
+  hostProbe=null;
+  if(taken&&!saved){closeLinks();mode=null;roomCode=null;throw {type:'unavailable-id'};}
+  if(saved){G=saved;G.hostId=myId;}
+  else{G=newGame(code,myId);applyIntent(G,{actor:myId,type:'join',payload:{name}});}
+  G.ep=Date.now();
+  ls.set('mono_room',code);ls.set('mono_role','host');
+  firstRender=true;
+  hostTimer=setInterval(hostTick,4000);
+  badgeTimer=setInterval(refreshRoomTag,3000);
+  links.forEach(L=>{L.onUp=()=>{try{broadcast();}catch(e){}};});
+  saveHost();render();broadcast();
 }
+let hostProbe=null;
 function saveHost(){try{ls.set('mono_hs_'+roomCode,JSON.stringify(G));}catch(e){}}
-function onGuestConn(c){
-  c.on('open',()=>{});
-  c.on('data',m=>{
-    if(!m)return;
-    if(m.t==='hello')onHello(c,m);
-    else if(m.t==='intent'&&m.it&&c.__pid){
-      queue.push({data:{t:Date.now(),actor:c.__pid,type:String(m.it.type||''),payload:m.it.payload||{}}});pump();
-    }
-  });
-  c.on('close',()=>{if(conns[c.peer]===c){delete conns[c.peer];netChanged();}});
-  c.on('error',()=>{});
+function hostTick(){
+  if(!G||G.hostId!==myId)return;
+  pub(topic('hb'),{rev:G.rev,ep:G.ep,ts:Date.now()});
+  const sig=hostOnline().sort().join(',');
+  if(sig!==lastOnSig){lastOnSig=sig;netChanged();}
 }
-function onHello(c,m){
-  c.__pid=String(m.pid||'').slice(0,40);c.__name=String(m.name||'Игрок').slice(0,16);
-  if(!c.__pid)return;
-  Object.keys(conns).forEach(k=>{if(conns[k]!==c&&conns[k].__pid===c.__pid){try{conns[k].close();}catch(e){}delete conns[k];}});
-  conns[c.peer]=c;
-  if(G&&G.status==='lobby'&&!P_(G,c.__pid)){
-    queue.push({data:{t:Date.now(),actor:c.__pid,type:'join',payload:{name:c.__name}}});
+function onHostMsg(tp,m){
+  if(tp.slice(-6)==='/state'){if(hostProbe&&m&&m.S)hostProbe(m);return;}
+  if(!m||!m.id||!m.pid)return;
+  if(seenIds.indexOf(m.id)>=0)return;
+  seenIds.push(m.id);if(seenIds.length>600)seenIds.splice(0,200);
+  if(!G||G.hostId!==myId)return;
+  const pid=String(m.pid).slice(0,40);
+  if(m.t==='hello'){
+    const was=lastSeen[pid];
+    lastSeen[pid]=Date.now();names[pid]=String(m.name||'Игрок').slice(0,16);
+    if(G.status==='lobby'&&!P_(G,pid))queue.push({data:{t:Date.now(),actor:pid,type:'join',payload:{name:names[pid]}}});
+    if(!was||Date.now()-was>14000||queue.length){pump();}
+  }else if(m.t==='intent'&&m.it&&lastSeen[pid]){
+    lastSeen[pid]=Date.now();
+    queue.push({data:{t:Date.now(),actor:pid,type:String(m.it.type||''),payload:m.it.payload||{}}});pump();
+  }else if(m.t==='sync'){
+    if(Date.now()-syncAt>1500){syncAt=Date.now();broadcast();}
   }
-  pump();
 }
 function netChanged(){if(G&&mode==='online'){render();broadcast();}}
-function broadcast(){
-  Object.keys(conns).forEach(k=>{const c=conns[k];try{if(c.open&&c.__pid)c.send({t:'state',S:G});}catch(e){}});
-}
+function broadcast(){if(G&&mode==='online'&&G.hostId===myId&&roomCode)pub(topic('state'),{S:G},true);}
 function pump(){
   if(pumping||!G||G.hostId!==myId)return;
   pumping=true;
@@ -865,67 +903,40 @@ function pump(){
 function joinRoom(code){
   code=String(code||'').toUpperCase().trim();
   if(code.length!==4){flash('Введите код из 4 символов');return;}
-  if(typeof Peer==='undefined'){flash('Сетевая библиотека не загрузилась');return;}
+  if(typeof mqtt==='undefined'){flash('Сетевая библиотека не загрузилась');return;}
   const name=nameVal();
   teardownNet();
   mode='online';roomCode=code;wantRoom=code;guestName=name;G=null;firstRender=true;
   ls.set('mono_room',code);ls.set('mono_role','guest');
   $('#netNote').textContent='Подключаюсь к комнате '+code+'…';
-  const pr=new Peer({debug:0});
-  peer=pr;
-  pr.on('open',()=>connectHost());
-  pr.on('disconnected',()=>{try{pr.reconnect();}catch(e){}});
-  pr.on('error',e=>{
-    if(peer!==pr)return;
-    if(e&&e.type==='peer-unavailable'){
-      if(!G){failJoin('Комната '+code+' не найдена или хост сейчас не в сети.');}
-      else scheduleReconnect(3000);
-    }else if(!G){failJoin(netErr(e));}
-  });
+  openLinks([topic('state'),topic('hb')],onGuestMsg);
+  links.forEach(L=>{L.onUp=()=>sendHello();});
+  helloTimer=setInterval(()=>{if(anyUp())sendHello();},5000);
+  badgeTimer=setInterval(refreshRoomTag,3000);
+  joinTimer=setTimeout(()=>{
+    if(G||mode!=='online')return;
+    failJoin(anyUp()?'Комната '+code+' не найдена. Проверьте код: хост должен быть в игре.':'Не удаётся подключиться к серверам связи. Проверьте интернет, VPN и блокировщики рекламы.');
+  },9000);
 }
 function failJoin(msg){
   teardownNet();mode=null;G=null;roomCode=null;
-  $('#netNote').textContent='';show('entry');flash(msg,7000);showResume();
+  $('#netNote').textContent='';show('entry');flash(msg,8000);showResume();
 }
-function connectHost(){
-  if(!peer||mode!=='online'||!wantRoom||(G&&G.hostId===myId))return;
-  const my=++connectSeq;
-  const c=peer.connect(PEER_PREFIX+wantRoom,{reliable:true,serialization:'json'});
-  hostConn=c;let opened=false;
-  c.on('open',()=>{
-    if(my!==connectSeq)return;
-    opened=true;
-    c.send({t:'hello',pid:myId,name:guestName});
-    render();
-  });
-  c.on('data',m=>{
-    if(my!==connectSeq||!m||m.t!=='state')return;
-    const d=m.S;
-    if(G&&G.code===d.code&&d.rev<G.rev)return;
-    G=d;render();
-  });
-  c.on('close',()=>{if(my===connectSeq){render();scheduleReconnect(3000);}});
-  c.on('error',()=>{if(my===connectSeq)scheduleReconnect(3000);});
-  setTimeout(()=>{
-    if(my===connectSeq&&!opened){
-      try{c.close();}catch(e){}
-      if(!G&&mode==='online')failJoin('Не удаётся соединиться с хостом. Проверьте код. Возможно, хост не в сети или сеть блокирует прямые соединения.');
-      else scheduleReconnect(3000);
-    }
-  },15000);
+function sendHello(){
+  if(!wantRoom)return;
+  pub(topic('up'),{id:uid(),t:'hello',pid:myId,name:guestName});
 }
-function scheduleReconnect(ms){
-  clearTimeout(reconnT);
-  reconnT=setTimeout(()=>{
-    if(mode!=='online'||!wantRoom||(G&&G.hostId===myId))return;
-    if(hostConn&&hostConn.open)return;
-    if(peer&&!peer.destroyed){
-      if(peer.disconnected){try{peer.reconnect();}catch(e){}}
-      connectHost();
-    }else joinRoom(wantRoom);
-  },ms);
+function onGuestMsg(tp,m){
+  if(!m)return;
+  if(tp.slice(-6)==='/state'){
+    const d=m.S;if(!d||!d.code)return;
+    if(G&&G.code===d.code&&G.ep===d.ep&&d.rev<=G.rev)return;
+    lastHost=Date.now();G=d;clearTimeout(joinTimer);render();
+  }else if(tp.slice(-3)==='/hb'){
+    lastHost=Date.now();
+    if(G&&(m.rev!==G.rev||m.ep!==G.ep)&&Date.now()-syncAt>3000){syncAt=Date.now();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
+  }
 }
-function hostLinked(){return !!(hostConn&&hostConn.open);}
 async function resumeRoom(){
   const code=ls.get('mono_room'),role=ls.get('mono_role');
   if(!code)return;
@@ -933,22 +944,22 @@ async function resumeRoom(){
     let saved=null;try{saved=JSON.parse(ls.get('mono_hs_'+code));}catch(e){}
     if(!saved){flash('Сохранённая игра не найдена');ls.del('mono_room');showResume();return;}
     flash('Восстанавливаю комнату…',4000);
-    for(let k=0;k<8;k++){
-      try{await startHost(code,saved,nameVal());return;}
-      catch(e){if(e&&e.type==='unavailable-id'){await sleep(2500);continue;}flash(netErr(e),7000);return;}
-    }
-    flash('Код комнаты ещё занят прежним соединением. Подождите минуту и попробуйте снова.',7000);
+    try{await startHost(code,saved,nameVal());}
+    catch(e){flash(e&&e.type==='network'?'Нет связи с серверами. Проверьте интернет.':'Не удалось восстановить комнату',7000);}
   }else joinRoom(code);
 }
 async function createRoom(){
   const name=nameVal();
-  flash('Создаю комнату…',2500);
-  for(let k=0;k<6;k++){
+  flash('Создаю комнату…',3000);
+  for(let k=0;k<5;k++){
     const code=genCode();
     try{await startHost(code,null,name);return;}
-    catch(e){if(e&&e.type==='unavailable-id')continue;flash(netErr(e),7000);return;}
+    catch(e){
+      if(e&&e.type==='unavailable-id')continue;
+      flash(e&&e.type==='network'?'Нет связи с серверами. Проверьте интернет, VPN и блокировщики рекламы.':'Сетевая ошибка: '+((e&&e.message)||'неизвестно'),8000);return;
+    }
   }
-  flash('Не удалось подобрать код комнаты');
+  flash('Не удалось подобрать свободный код комнаты');
 }
 function act(type,payload,actor){
   payload=payload||{};
@@ -967,17 +978,19 @@ function act(type,payload,actor){
     if(G.hostId===myId){
       const it={t:Date.now(),actor:(actor&&String(actor).indexOf('bot')===0)?actor:myId,type,payload};
       queue.push({data:it});pump();
-    }else if(hostConn&&hostConn.open){
-      try{hostConn.send({t:'intent',it:{type,payload}});}catch(e){flash('Не удалось отправить действие');}
-    }else flash('Нет соединения с хостом, переподключаюсь…',3000);
+    }else if(anyUp()){
+      pub(topic('up'),{id:uid(),t:'intent',pid:myId,it:{type,payload}});
+    }else flash('Нет связи с серверами, переподключаюсь…',3000);
   }
 }
 function exitGame(forget){
   clearTokens();
   manageOpen=false;$('#manageBox').innerHTML='';
   clearTimeout(botTimer);botTimer=null;
-  teardownNet();G=null;mode=null;
-  if(forget===true){const c=roomCode;ls.del('mono_room');ls.del('mono_role');if(c)ls.del('mono_hs_'+c);}
+  const c=roomCode;
+  teardownNet(forget===true);
+  G=null;mode=null;
+  if(forget===true){ls.del('mono_room');ls.del('mono_role');if(c)ls.del('mono_hs_'+c);}
   roomCode=null;
   show('entry');closeBoxes();showResume();
 }
@@ -1207,7 +1220,7 @@ function fitDock(){
 }
 function renderTop(){
   renderTabs();
-  $('#roomtag').innerHTML=mode==='online'?`<span class="chipcode" data-a="copy" style="cursor:pointer" title="Скопировать">${esc(G.code)}</span> <span class="badge">${isHost()?'🟢 хост · игроков в сети: '+hostOnline().length:(hostLinked()?'🟢 подключено':'🔴 переподключение…')}</span>`:'<span class="badge">локально</span>';
+  $('#roomtag').innerHTML=mode==='online'?`<span class="chipcode" data-a="copy" style="cursor:pointer" title="Скопировать">${esc(G.code)}</span> ${netBadge()}`:'<span class="badge">локально</span>';
   if(mode==='local'){
     $('#localpick').innerHTML=`<label class="note" style="margin:0">Действует: <select id="actorSel" style="font:inherit;background:var(--card);color:inherit;border:1px solid var(--line);border-radius:8px;padding:3px">${alive(G).map(p=>`<option value="${esc(p.id)}" ${p.id===localActor?'selected':''}>${p.token} ${esc(p.name)}</option>`).join('')}</select></label>`;
   }else $('#localpick').innerHTML='';
@@ -1570,7 +1583,7 @@ function scheduleBots(){
     act(s2.type,s2.payload,s2.actor);
   },750);
 }
-document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId&&!hostLinked())scheduleReconnect(200);}catch(e){}});
+document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId)sendHello();}catch(e){}});
 window.addEventListener('error',e=>{try{flash('Ошибка в игре: '+(e.message||'неизвестно'),8000);}catch(x){}});
 init();
 </script>
