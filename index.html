@@ -84,7 +84,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 #bwrap{display:block}
 #bframe{position:relative;width:var(--bs);height:var(--bs)}
 #board{display:grid;grid-template-columns:1.6fr repeat(9,1fr) 1.6fr;grid-template-rows:1.6fr repeat(9,1fr) 1.6fr;
-  width:var(--bs);height:var(--bs);padding:calc(var(--u)*5);gap:calc(var(--u)*.35);border-radius:calc(var(--u)*2.2);overflow:hidden;
+  width:var(--bs);height:var(--bs);padding:calc(var(--u)*var(--rail,6.5));gap:calc(var(--u)*.35);border-radius:calc(var(--u)*2.2);overflow:hidden;
   background:var(--frame);border:1px solid var(--line)}
 .sq{position:relative;background:var(--sq);display:flex;overflow:hidden;border-radius:calc(var(--u)*.6);
   font-size:clamp(6px,calc(var(--u)*1.25),14px);line-height:1.12;cursor:pointer;min-width:0;min-height:0;text-align:center}
@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 #toklayer{position:absolute;inset:0;pointer-events:none;z-index:5}
 .ptok{position:absolute;width:var(--s);height:var(--s);transform:translate(-50%,-50%);transition:left .12s linear,top .12s linear,width .2s,height .2s}
 .pt-in{position:relative;width:100%;height:100%;border-radius:50%;background:var(--c);border:calc(var(--u)*.4) solid #fff;display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.45)}
-.pt-in span{font-size:calc(var(--s)*.58);line-height:1}
+.pt-in span{font-size:calc(var(--s)*.62);line-height:1}
 .ptok.jl .pt-in{box-shadow:0 0 0 calc(var(--u)*.35) #111,0 0 0 calc(var(--u)*.75) #e6b422}
 .ptok.cur .pt-in{box-shadow:0 0 0 calc(var(--u)*.4) var(--accent),0 2px 8px rgba(0,0,0,.4)}
 .ptok.me .pt-in{outline:calc(var(--u)*.35) dashed var(--fg);outline-offset:calc(var(--u)*.45)}
@@ -183,6 +183,10 @@ table.rent td{padding:4px;border-bottom:1px solid var(--line)}
 table.rent td:last-child{text-align:right;font-weight:700}
 .titlebar{padding:10px;border-radius:10px;color:#fff;font-weight:700;font-size:17px;text-align:center;margin-bottom:10px;text-shadow:0 1px 2px rgba(0,0,0,.45)}
 #tabs{display:none}
+.sn{display:none}
+.lbl{font-size:1.15em;letter-spacing:.02em}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+.dot.on{background:var(--ok)}.dot.off{background:var(--danger)}
 /* ---- широкий экран и планшет-ландшафт ---- */
 @media (min-aspect-ratio:1/1) and (min-width:601px){
   html,body{height:100%}
@@ -216,6 +220,7 @@ table.rent td:last-child{text-align:right;font-weight:700}
   #turn .turnhead{margin-bottom:2px}
   #turn .btns{margin-top:8px}
   .sq .nm{display:none}
+  .sq .sn{display:block;font-size:max(6.5px,calc(var(--u)*1.8));line-height:1.1}
   .sq .pr{font-size:max(6.5px,calc(var(--u)*1.7))}
   .sbody .em{font-size:calc(var(--u)*3.6)}
   .btn.sm{padding:7px 11px;font-size:13px}
@@ -730,7 +735,6 @@ function applyIntent(S,it){
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
-const EMO={1:'🐪',3:'🐘',5:'🚆',6:'🍜',8:'🕌',9:'🌮',11:'🏖️',12:'💡',13:'💃',14:'🦙',15:'🚆',16:'🏰',18:'🎻',19:'🍺',21:'🐻',23:'🐂',24:'🏛️',25:'🚆',26:'🎡',27:'🥐',28:'🚰',29:'🌷',31:'🦘',32:'🦁',34:'🏜️',35:'🚆',37:'🗼',39:'🗽'};
 const PIPS=[[],[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
 function dieHTML(n){let h='<div class="die '+(n===1?'one':'')+'">';for(let k=0;k<9;k++)h+=PIPS[n].indexOf(k)>=0?'<i class="p"></i>':'<i></i>';return h+'</div>';}
 const TCLS={chance:'t-chance',chest:'t-chest',tax:'t-tax',rail:'t-rail',util:'t-util',go:'c-go',jail:'c-jail',park:'c-park',gojail:'c-gojail'};
@@ -776,8 +780,8 @@ function isOffline(p){
 function hostLinked(){return anyUp()&&Date.now()-lastHost<15000;}
 function netBadge(){
   if(mode!=='online'||!G)return '';
-  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'🟢':'🔴')+' хост · игроков в сети: '+hostOnline().length+'</span>';
-  return '<span class="badge">'+(hostLinked()?'🟢 подключено':(anyUp()?'🔴 хост не отвечает…':'🔴 нет связи…'))+'</span>';
+  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>';
+  return '<span class="badge">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>';
 }
 function refreshRoomTag(){
   if(mode!=='online'||!G)return;
@@ -1098,7 +1102,7 @@ function showSquare(i){
   const sq=B[i];if(!G)return;
   const pr_=G.props&&G.props[i];
   let h=`<div class="modalbg" data-a="close"><div class="modal" style="max-width:380px">`;
-  if(sq.t==='prop')h+=`<div class="titlebar" style="background:${G_COL[sq.g]}">${EMO[i]||''} ${esc(sq.n)}</div>`;else h+=`<h3>${EMO[i]||''} ${esc(sq.n)}</h3>`;
+  if(sq.t==='prop')h+=`<div class="titlebar" style="background:${G_COL[sq.g]}">${esc(sq.n)}</div>`;else h+=`<h3>${esc(sq.n)}</h3>`;
   if(sq.t==='prop'){
     h+=`<table class="rent"><tr><td>Аренда</td><td>$${sq.r[0]}</td></tr><tr><td>С монополией</td><td>$${sq.r[0]*2}</td></tr>`;
     for(let k=1;k<=4;k++)h+=`<tr><td>${k} ${k===1?'дом':'дома'}</td><td>$${sq.r[k]}</td></tr>`;
@@ -1140,7 +1144,7 @@ function renderDraft(){
     if(!list.length)return '<p class="note">Нет собственности</p>';
     return list.map(i=>{
       const built=groupBuilt(G,i);
-      return `<label class="ck ${built?'dis':''}"><input type="checkbox" data-d="${key}" value="${i}" ${draft[key].includes(i)?'checked':''} ${built?'disabled':''}>${B[i].g?`<span class="chip" style="background:${G_COL[B[i].g]}"></span>`:'<span>🚉</span>'}${esc(B[i].n)}${G.props[i].mort?' <small>(залог)</small>':''}${built?' <small>(постройки)</small>':''}</label>`;
+      return `<label class="ck ${built?'dis':''}"><input type="checkbox" data-d="${key}" value="${i}" ${draft[key].includes(i)?'checked':''} ${built?'disabled':''}>${B[i].g?`<span class="chip" style="background:${G_COL[B[i].g]}"></span>`:'<span class="chip" style="background:#555"></span>'}${esc(B[i].n)}${G.props[i].mort?' <small>(залог)</small>':''}${built?' <small>(постройки)</small>':''}</label>`;
     }).join('');
   };
   let h=`<div class="modalbg"><div class="modal"><h3>Предложить обмен</h3>
@@ -1173,6 +1177,7 @@ function render(){
     const key=G.status+':'+G.cur+':'+G.phase;
     if(key!==lastKey){lastKey=key;const c=G.players[G.cur];localActor=(G.phase==='debt'&&G.debt)?G.debt.pid:(c?c.id:localActor);}
   }
+  RAIL=railFor();try{$('#board').style.setProperty('--rail',RAIL);}catch(e){}
   renderTop();renderBoard();syncTokens();renderTurn();renderPlayers();renderMine();renderLog();renderTradeBox();
   if(manageOpen)renderManage();
   effects();
@@ -1189,8 +1194,8 @@ function renderLobby(){
   for(let k=0;k<6;k++){
     const p=S.players[k];
     if(p){
-      h+=`<div class="slot"><span class="tk" style="background:${p.color}">${p.token}</span><div class="nmb"><b>${esc(p.name)}</b><span>${p.id===S.hostId?'<span class="badge">хост</span> ':''}${p.bot?'<span class="badge">🤖 бот</span> ':''}${p.id===myId?'<span class="badge">вы</span>':''}</span></div>${(p.bot||isOffline(p))&&host&&p.id!==S.hostId?`<button class="btn sm danger" data-a="kick" data-v="${esc(p.id)}">×</button>`:''}${isOffline(p)?'<span class="badge">не в сети</span>':''}</div>`;
-    }else if(host)h+=`<div class="slot empty"><button class="btn sm" data-a="addbot">🤖 Добавить бота</button></div>`;
+      h+=`<div class="slot"><span class="tk" style="background:${p.color}">${p.token}</span><div class="nmb"><b>${esc(p.name)}</b><span>${p.id===S.hostId?'<span class="badge">хост</span> ':''}${p.bot?'<span class="badge">бот</span> ':''}${p.id===myId?'<span class="badge">вы</span>':''}</span></div>${(p.bot||isOffline(p))&&host&&p.id!==S.hostId?`<button class="btn sm danger" data-a="kick" data-v="${esc(p.id)}">×</button>`:''}${isOffline(p)?'<span class="badge">не в сети</span>':''}</div>`;
+    }else if(host)h+=`<div class="slot empty"><button class="btn sm" data-a="addbot">Добавить бота</button></div>`;
     else h+=`<div class="slot empty">ждём игрока…</div>`;
   }
   h+=`</div>`;
@@ -1230,10 +1235,14 @@ function houseHTML(n){
   return '<i class="h"></i>'.repeat(n);
 }
 // ---------- фишки на поле ----------
-const TPAD=5,TGAP=.35,TFR=(100-2*TPAD-10*TGAP)/12.2;
+let RAIL=6.5;const TGAP=.35;
+function railFor(){
+  try{return (window.matchMedia&&window.matchMedia('(max-aspect-ratio:1/1),(max-width:600px)').matches)?9:6.5;}catch(e){return 6.5;}
+}
+function tfr(){return (100-2*RAIL-10*TGAP)/12.2;}
 function tileCenter(i){
   const rc=cellOf(i);
-  const ctr=k=>{const sz=[1.6,1,1,1,1,1,1,1,1,1,1.6].map(f=>f*TFR);let x=TPAD;for(let j=0;j<k-1;j++)x+=sz[j]+TGAP;return x+sz[k-1]/2;};
+  const ctr=k=>{const sz=[1.6,1,1,1,1,1,1,1,1,1,1.6].map(f=>f*tfr());let x=RAIL;for(let j=0;j<k-1;j++)x+=sz[j]+TGAP;return x+sz[k-1]/2;};
   return [ctr(rc[1]),ctr(rc[0])];
 }
 function clearTokens(){
@@ -1275,19 +1284,19 @@ function paintTokens(){
   Object.keys(groups).forEach(pos=>{
     const list=groups[pos],n=list.length,ctr=tileCenter(+pos),ip=+pos;
     const side=ip<=10?'b':ip<=19?'l':ip<=30?'t':'r';
-    const span=(ip%10===0)?1.6*TFR:TFR;
-    const base=n===1?4.6:4.2;
-    const step=Math.max(2.2,Math.min(base*0.92,span*1.1/n));
+    const span=(ip%10===0)?1.6*tfr():tfr();
+    const base=n===1?RAIL*.8:RAIL*.7;
+    const step=Math.max(RAIL*.42,Math.min(base*0.92,span*1.1/n));
     list.forEach((p,k)=>{
       alivIds[p.id]=1;
       const isCur=p.id===curId,isMe=mode==='online'&&p.id===myId;
-      const sz=isCur?4.9:base;
+      const sz=isCur?RAIL*.9:base;
       const off=(k-(n-1)/2)*step;
       let x,y;
-      if(side==='b'){x=ctr[0]+off;y=100-TPAD/2;}
-      else if(side==='t'){x=ctr[0]+off;y=TPAD/2;}
-      else if(side==='l'){x=TPAD/2;y=ctr[1]+off;}
-      else{x=100-TPAD/2;y=ctr[1]+off;}
+      if(side==='b'){x=ctr[0]+off;y=100-RAIL/2;}
+      else if(side==='t'){x=ctr[0]+off;y=RAIL/2;}
+      else if(side==='l'){x=RAIL/2;y=ctr[1]+off;}
+      else{x=100-RAIL/2;y=ctr[1]+off;}
       let t=tokEls[p.id];
       if(!t){
         const el=document.createElement('div'),inn=document.createElement('div'),em=document.createElement('span'),tag=document.createElement('div');
@@ -1305,21 +1314,22 @@ function paintTokens(){
   });
   Object.keys(tokEls).forEach(id=>{if(!alivIds[id]){const t=tokEls[id];if(t.el.remove)t.el.remove();delete tokEls[id];delete shown[id];}});
 }
+const SHORT={1:'Каир',3:'Дели',5:'Транс.',6:'Бангк.',8:'Стамб.',9:'Мехико',11:'Рио',12:'Элек.',13:'Буэнос',14:'Лима',15:'Восточ.',16:'Москва',18:'Вена',19:'Прага',21:'Берлин',23:'Мадрид',24:'Рим',25:'Синк.',26:'Лондон',27:'Париж',28:'Вода',29:'Амст.',31:'Сидней',32:'Синг.',34:'Дубай',35:'Глет.',37:'Токио',39:'Н-Йорк'};
 function renderBoard(){
   const S=G;let h='';
   for(let i=0;i<40;i++){
     const sq=B[i],[r,c]=cellOf(i),side=sideOf(i),x=S.props[i];
     let band='',body='';
-    const em=EMO[i]?`<span class="em">${EMO[i]}</span>`:'';
-    if(sq.t==='prop'){band=`<div class="band" style="background:${G_COL[sq.g]}">${houseHTML(x.houses)}</div>`;body=`${em}<b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;}
-    else if(sq.t==='rail'||sq.t==='util')body=`${em}<b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;
-    else if(sq.t==='chance')body=`<span class="big">❓</span><b>Шанс</b>`;
-    else if(sq.t==='chest')body=`<span class="big">🎁</span><b>Казна</b>`;
-    else if(sq.t==='tax')body=`<span class="big">💸</span><b class="nm">${esc(sq.n)}</b><span class="pr">$${sq.p}</span>`;
-    else if(sq.t==='go')body=`<span class="big">🏁</span><b>СТАРТ</b><span class="pr">+$200</span>`;
-    else if(sq.t==='jail')body=`<span class="big">🔒</span><b>Тюрьма</b><span class="pr">в гостях</span>`;
-    else if(sq.t==='park')body=`<span class="big">🅿️</span><b>Парковка</b>`;
-    else if(sq.t==='gojail')body=`<span class="big">👮</span><b>В тюрьму!</b>`;
+    const nm=`<b class="nm">${esc(sq.n)}</b><b class="sn">${esc(SHORT[i]||sq.n)}</b>`;
+    if(sq.t==='prop'){band=`<div class="band" style="background:${G_COL[sq.g]}">${houseHTML(x.houses)}</div>`;body=`${nm}<span class="pr">$${sq.p}</span>`;}
+    else if(sq.t==='rail'||sq.t==='util')body=`${nm}<span class="pr">$${sq.p}</span>`;
+    else if(sq.t==='chance')body=`<b class="lbl">Шанс</b>`;
+    else if(sq.t==='chest')body=`<b class="lbl">Казна</b>`;
+    else if(sq.t==='tax')body=`<b class="nm">${esc(sq.n)}</b><b class="sn">Налог</b><span class="pr">$${sq.p}</span>`;
+    else if(sq.t==='go')body=`<b class="lbl">СТАРТ</b><span class="pr">+$200</span>`;
+    else if(sq.t==='jail')body=`<b class="lbl">ТЮРЬМА</b><span class="pr">в гостях</span>`;
+    else if(sq.t==='park')body=`<b class="lbl">ПАРКОВКА</b>`;
+    else if(sq.t==='gojail')body=`<b class="lbl">В ТЮРЬМУ</b>`;
     const here=S.status==='playing'&&curP(S).pos===i;
     const owner=x&&x.owner?P_(S,x.owner):null;
     h+=`<div class="sq ${side} ${TCLS[sq.t]||''} ${x&&x.mort?'mort':''} ${here?'here':''}" data-a="sq" data-v="${i}" style="grid-row:${r};grid-column:${c};${owner?`box-shadow:inset 0 0 0 .35em ${owner.color}`:''}">${band}<div class="sbody">${body}</div></div>`;
@@ -1336,7 +1346,7 @@ function renderTurn(){
   let h='';
   if(S.status==='ended'){
     const w=P_(S,S.winner);
-    h=`<div class="winner"><div class="big">🏆</div><h2>${w?esc(w.name):'Никто'} побеждает!</h2></div>`;
+    h=`<div class="winner"><h2>${w?esc(w.name):'Никто'} побеждает!</h2></div>`;
     if(isHost())h+=`<div class="btns" style="justify-content:center"><button class="btn primary" data-a="rematch">Сыграть ещё</button></div>`;
     $('#turn').innerHTML=h;return;
   }
@@ -1353,7 +1363,7 @@ function renderTurn(){
           h+=`<button class="btn primary" data-a="roll">Бросить (дубль = свобода)</button>`;
         }else{
           if(S.again)h+=`<span class="note" style="width:100%;margin:0">Дубль! Бросайте ещё раз</span>`;
-          h+=`<button class="btn primary big" data-a="roll">🎲 Бросить кубики</button>`;
+          h+=`<button class="btn primary big" data-a="roll">Бросить кубики</button>`;
         }
         h+=`</div>`;
       }else h+=wait;
@@ -1384,14 +1394,14 @@ function renderTurn(){
       }else h+=`<p class="note">${esc(dp.name)} должен $${d.amount} (${esc(to)}) и собирает деньги</p>`;
       break;}
     case 'post':
-      if(mine)h+=`<div class="btns"><button class="btn primary big" data-a="endturn">Закончить ход ➜</button></div>`;else h+=wait;
+      if(mine)h+=`<div class="btns"><button class="btn primary big" data-a="endturn">Закончить ход</button></div>`;else h+=wait;
       break;
   }
   if(S.trade&&me&&S.trade.from===me.id){
     h+=`<p class="note" style="margin-top:10px">Ваше предложение обмена ждёт ответа.</p><button class="btn sm" data-a="tcancel">Отозвать</button>`;
   }
   if(me&&!me.out){
-    h+=`<div class="btns" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><button class="btn sm" data-a="manage">🏠 Постройки и залог</button><button class="btn sm" data-a="draft" ${S.phase==='auction'?'disabled':''}>🤝 Обмен</button><button class="btn sm danger" data-a="surrender" ${S.phase==='auction'?'disabled':''}>Сдаться</button></div>`;
+    h+=`<div class="btns" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><button class="btn sm" data-a="manage">Постройки и залог</button><button class="btn sm" data-a="draft" ${S.phase==='auction'?'disabled':''}>Обмен</button><button class="btn sm danger" data-a="surrender" ${S.phase==='auction'?'disabled':''}>Сдаться</button></div>`;
   }else if(!me)h+=`<p class="note">Вы наблюдатель.</p>`;
   $('#turn').innerHTML=h;
 }
@@ -1401,7 +1411,7 @@ function renderPlayers(){
   S.players.forEach((p,idx)=>{
     const props=ownedBy(S,p.id);
     const nw=p.cash;
-    h+=`<div class="pl ${S.status==='playing'&&S.cur===idx&&!p.out?'cur':''} ${p.out?'out':''}" data-a="spot" data-v="${esc(p.id)}"><span class="tk" style="background:${p.color}">${p.token}</span><div class="meta"><b>${esc(p.name)}</b>${p.bot?' 🤖':''}${p.id===myId||(mode==='local'&&p.id===localActor)?' <span class="badge">вы</span>':''}${p.id===S.hostId&&mode==='online'?' <span class="badge">хост</span>':''}${p.jail?' <span class="badge red">тюрьма</span>':''}${p.jc.length?` <span class="badge">🎫×${p.jc.length}</span>`:''}${isOffline(p)&&!p.out?' <span class="badge">не в сети</span>':''}<small>${p.out?'банкрот':esc(B[p.pos].n)}</small></div>${isHost()&&mode==='online'&&isOffline(p)&&!p.out&&S.status==='playing'?`<button class="btn sm danger" data-a="drop" data-v="${esc(p.id)}" ${S.phase==='auction'?'disabled':''}>Исключить</button>`:''}<div class="cash">$${nw}</div>`;
+    h+=`<div class="pl ${S.status==='playing'&&S.cur===idx&&!p.out?'cur':''} ${p.out?'out':''}" data-a="spot" data-v="${esc(p.id)}"><span class="tk" style="background:${p.color}">${p.token}</span><div class="meta"><b>${esc(p.name)}</b>${p.bot?' <span class="badge">бот</span>':''}${p.id===myId||(mode==='local'&&p.id===localActor)?' <span class="badge">вы</span>':''}${p.id===S.hostId&&mode==='online'?' <span class="badge">хост</span>':''}${p.jail?' <span class="badge red">тюрьма</span>':''}${p.jc.length?` <span class="badge">карта выхода ×${p.jc.length}</span>`:''}${isOffline(p)&&!p.out?' <span class="badge">не в сети</span>':''}<small>${p.out?'банкрот':esc(B[p.pos].n)}</small></div>${isHost()&&mode==='online'&&isOffline(p)&&!p.out&&S.status==='playing'?`<button class="btn sm danger" data-a="drop" data-v="${esc(p.id)}" ${S.phase==='auction'?'disabled':''}>Исключить</button>`:''}<div class="cash">$${nw}</div>`;
     if(props.length)h+=`<div class="chips">${props.map(i=>`<span class="chip ${S.props[i].mort?'m':''}" data-a="sq" data-v="${i}" title="${esc(B[i].n)}" style="background:${B[i].g?G_COL[B[i].g]:(B[i].t==='rail'?'#555':'#aaa')}"></span>`).join('')}</div>`;
     h+=`</div>`;
   });
@@ -1430,7 +1440,7 @@ function propsHTML(S,me,hints){
     if(!mine.length)return;
     const isProp=!!GROUPS[g],full=mine.length===grp.length;
     const title=g==='rail'?'Железные дороги':g==='util'?'Коммунальные':G_NAME[g];
-    h+=`<div class="grp"><div class="grph"><span class="chip" style="background:${G_COL[g]||'#666'}"></span><b>${title}</b> <span class="note" style="margin:0">${mine.length}/${grp.length}${isProp&&full?' · монополия ⭐ можно строить':''}</span></div>`;
+    h+=`<div class="grp"><div class="grph"><span class="chip" style="background:${G_COL[g]||'#666'}"></span><b>${title}</b> <span class="note" style="margin:0">${mine.length}/${grp.length}${isProp&&full?' · монополия, можно строить':''}</span></div>`;
     if(isProp&&!full){
       grp.filter(i=>S.props[i].owner!==me.id).forEach(i=>{
         const o=S.props[i].owner?P_(S,S.props[i].owner):null;
@@ -1439,7 +1449,7 @@ function propsHTML(S,me,hints){
     }
     mine.forEach(i=>{
       const sq=B[i],x=S.props[i];
-      const st=x.mort?' <span class="badge">залог</span>':(x.houses?` ${x.houses===5?'🏨':'🏠×'+x.houses}`:'');
+      const st=x.mort?' <span class="badge">залог</span>':(x.houses?` ${x.houses===5?'отель':'домов: '+x.houses}`:'');
       h+=`<div class="prow"><span class="pn" data-a="sq" data-v="${i}" style="cursor:pointer">${esc(sq.n)}${st}</span><span class="pb">`;
       if(sq.t==='prop'){
         h+=`<button class="btn sm" data-a="build" data-v="${i}" title="Построить ($${sq.h})" ${open&&canBuild(S,me.id,i)?'':'disabled'}>+ $${sq.h}</button>`;
@@ -1583,6 +1593,7 @@ function scheduleBots(){
     act(s2.type,s2.payload,s2.actor);
   },750);
 }
+window.addEventListener('resize',()=>{try{if(G&&G.status!=='lobby'&&railFor()!==RAIL)render();}catch(e){}});
 document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId)sendHello();}catch(e){}});
 window.addEventListener('error',e=>{try{flash('Ошибка в игре: '+(e.message||'неизвестно'),8000);}catch(x){}});
 init();
