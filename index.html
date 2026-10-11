@@ -767,7 +767,8 @@ function flash(msg,ms){
 function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);});}
 
 // ---------- сеть: ретрансляция через публичные MQTT-брокеры (WebSocket, работает за NAT) ----------
-const BROKERS=['wss://mqtt.eclipseprojects.io:443/mqtt','wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://public.cloud.shiftr.io','wss://mqtt.eclipseprojects.io:443/mqtt','wss://broker.emqx.io:8084/mqtt','wss://test.mosquitto.org:8081'];
+const BROKER_OPTS={'wss://public.cloud.shiftr.io':{username:'public',password:'public'}};
 let links=[],hostTimer=null,helloTimer=null,joinTimer=null,badgeTimer=null;
 let lastEcho=0,lastForce=0,hiddenAt=0,watchTimer=null,QUIET_MS=30000,FORCE_GAP=45000,FLAP_N=3,FLAP_WIN=180000;
 let netStats={forced:0,wakes:0,flapUntil:0,forcedAt:[]};
@@ -839,7 +840,7 @@ function openLinks(subs,onMsg){
   links=BROKERS.map(url=>{
     const L={url,up:false,cli:null,st:{opens:0,closes:0,errs:0,last:''}};
     try{
-      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:30});
+      L.cli=mqtt.connect(url,Object.assign({clientId:'mono_'+uid(),clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:30},BROKER_OPTS[url]||{}));
       L.cli.on('connect',()=>{L.up=true;L.st.opens++;subs.forEach(t=>L.cli.subscribe(t,{qos:1}));if(L.onUp)L.onUp();});
       L.cli.on('close',()=>{L.up=false;L.st.closes++;});
       L.cli.on('offline',()=>{L.up=false;});
@@ -919,7 +920,7 @@ async function startHost(code,saved,name){
   let taken=false;
   hostProbe=()=>{taken=true;};
   openLinks([topic('up'),topic('state'),topic('hb')],onHostMsg);
-  const ok=await waitUp(9000);
+  const ok=await waitUp(12000);
   if(!ok){hostProbe=null;closeLinks();mode=null;roomCode=null;throw {type:'network'};}
   if(!saved)await sleep(1800);   // ждём «чужую» запись комнаты с этим кодом
   hostProbe=null;
@@ -1016,7 +1017,7 @@ function onGuestMsg(tp,m){
     G=d;clearTimeout(joinTimer);render();
   }else if(tp.slice(-3)==='/hb'){
     lastHost=Date.now();
-    if(G&&(m.ep!==G.ep||(m.seq||0)>(G.seq||0))&&Date.now()-syncAt>3000){syncAt=Date.now();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
+    if((!G||m.ep!==G.ep||(m.seq||0)>(G.seq||0))&&Date.now()-syncAt>3000){syncAt=Date.now();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
   }
 }
 async function resumeRoom(){
