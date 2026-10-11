@@ -181,6 +181,14 @@ table.rent{border-collapse:collapse;width:100%;font-size:14px}
 table.rent td{padding:4px;border-bottom:1px solid var(--line)}
 table.rent td:last-child{text-align:right;font-weight:700}
 .titlebar{padding:10px;border-radius:10px;color:#fff;font-weight:700;font-size:17px;text-align:center;margin-bottom:10px;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+/* карточки: заливка цветом группы, полоска с ценой / цветом владельца */
+.sq.own{flex-direction:column!important}
+.sq.own .band{flex:0 0 auto;flex-direction:row;min-height:calc(var(--u)*2.4);padding:0 .3em;font-size:1.05em;font-weight:800;box-shadow:none}
+.sq.own .bp{letter-spacing:.01em}
+.sq.own .sbody{padding:calc(var(--u)*.3)}
+.sq.own .nm,.sq.own .sn{text-transform:uppercase;font-weight:800;line-height:1.08}
+.sq.own .nm{font-size:.92em}
+.sq.own:hover{background-blend-mode:normal;filter:brightness(1.07)}
 #tabs{display:none}
 .sn{display:none}
 .lbl{font-size:1.15em;letter-spacing:.02em}
@@ -194,14 +202,14 @@ table.rent td:last-child{text-align:right;font-weight:700}
   .layout{flex:1;min-height:0;max-width:none;margin:0;grid-template-columns:var(--bs) minmax(0,1fr)}
   .sidebar{overflow-y:auto;min-height:0;padding:0 6px 10px 0}
 }
-@media (min-width:1500px) and (min-aspect-ratio:3/2){
-  .sidebar{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
-  .sidebar>*+*{margin-top:0}
-  #turn{grid-column:1/-1}
-  #mine{grid-column:1;grid-row:2/span 2}
-  #players{grid-column:2;grid-row:2}
-  #logcard{grid-column:2;grid-row:3}
-  .loglist{max-height:32vh}
+/* ---- ПК: журнал слева, поле посередине, собственность / игроки / кнопки справа ---- */
+#leftcol{display:none}
+@media (min-aspect-ratio:1/1) and (min-width:1200px){
+  :root{--sidew:660px}
+  .layout{grid-template-columns:minmax(220px,1fr) var(--bs) minmax(300px,1fr)}
+  #leftcol{display:flex;flex-direction:column;min-height:0;padding:0 0 10px}
+  #leftcol #logcard{flex:1;min-height:0;display:flex;flex-direction:column}
+  #leftcol .loglist{flex:1;min-height:0;max-height:none;overflow-y:auto}
 }
 /* ---- телефоны и вертикальные экраны ---- */
 @media (max-aspect-ratio:1/1),(max-width:600px){
@@ -221,6 +229,7 @@ table.rent td:last-child{text-align:right;font-weight:700}
   .sq .nm{display:none}
   .sq .sn{display:block;font-size:max(6.5px,calc(var(--u)*1.8));line-height:1.1}
   .sq .pr{font-size:max(6.5px,calc(var(--u)*1.7))}
+  .sq.own .band{font-size:max(6.5px,calc(var(--u)*1.55))}
   .btn.sm{padding:7px 11px;font-size:13px}
   .loglist{max-height:none}
   .modalbg{align-items:flex-end;padding:0}
@@ -255,6 +264,7 @@ table.rent td:last-child{text-align:right;font-weight:700}
         <button class="btn sm danger" data-a="exit">Выйти</button>
   </div>
   <div class="layout">
+    <aside id="leftcol"></aside>
     <div id="bwrap"><div id="bframe"><div id="board"></div><div id="toklayer"></div></div></div>
     <div id="tabs"></div>
     <aside class="sidebar" id="side">
@@ -758,6 +768,7 @@ function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);
 // ---------- сеть: ретрансляция через публичные MQTT-брокеры (WebSocket, работает за NAT) ----------
 const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
 let links=[],hostTimer=null,helloTimer=null,joinTimer=null,badgeTimer=null;
+let lastEcho=0,lastForce=0,hiddenAt=0,watchTimer=null,QUIET_MS=13000,FORCE_GAP=10000;
 let wantRoom=null,guestName='',lastHost=0,seenIds=[],lastSeen={},names={},syncAt=0,lastOnSig='';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const topic=k=>'monoru/v2/'+(roomCode||wantRoom)+'/'+k;
@@ -778,8 +789,8 @@ function isOffline(p){
 function hostLinked(){return anyUp()&&Date.now()-lastHost<15000;}
 function netBadge(){
   if(mode!=='online'||!G)return '';
-  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>';
-  return '<span class="badge">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>';
+  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>'+(anyUp()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
+  return '<span class="badge">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>'+(hostLinked()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
 }
 function refreshRoomTag(){
   if(mode!=='online'||!G)return;
@@ -790,7 +801,7 @@ function openLinks(subs,onMsg){
   links=BROKERS.map(url=>{
     const L={url,up:false,cli:null};
     try{
-      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:30});
+      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:2000,connectTimeout:8000,keepalive:15});
       L.cli.on('connect',()=>{L.up=true;subs.forEach(t=>L.cli.subscribe(t,{qos:1}));if(L.onUp)L.onUp();});
       L.cli.on('close',()=>{L.up=false;});
       L.cli.on('offline',()=>{L.up=false;});
@@ -813,6 +824,25 @@ function waitUp(ms){
     const iv=setInterval(()=>{if(anyUp()){clearInterval(iv);res(true);}else if(Date.now()-t0>ms){clearInterval(iv);res(false);}},60);
   });
 }
+function forceReconnect(){
+  links.forEach(L=>{try{if(L.cli&&L.cli.reconnect){L.up=false;L.cli.reconnect();}}catch(e){}});
+}
+function watchdog(){
+  if(mode!=='online'||!G)return;
+  const now=Date.now(),host=G.hostId===myId;
+  const quiet=host?(now-lastEcho>QUIET_MS):(now-lastHost>QUIET_MS);
+  const gap=now-lastForce>FORCE_GAP;
+  if(gap&&((anyUp()&&quiet)||!anyUp())){lastForce=now;forceReconnect();}
+}
+function wake(){
+  if(mode!=='online'||!G)return;
+  lastForce=Date.now();forceReconnect();
+  setTimeout(()=>{
+    if(mode!=='online'||!G)return;
+    if(G.hostId===myId)broadcast();
+    else{sendHello();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
+  },900);
+}
 async function init(){
   $('#inName').value=ls.get('mono_name')||'';
   myId=getPid();
@@ -832,7 +862,7 @@ function showResume(){
 function genCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
 function nameVal(){const n=$('#inName').value.trim()||'Игрок';ls.set('mono_name',n);return n.slice(0,16);}
 function teardownNet(clearRoom){
-  clearInterval(hostTimer);hostTimer=null;clearInterval(helloTimer);helloTimer=null;clearTimeout(joinTimer);joinTimer=null;clearInterval(badgeTimer);badgeTimer=null;
+  clearInterval(hostTimer);hostTimer=null;clearInterval(helloTimer);helloTimer=null;clearTimeout(joinTimer);joinTimer=null;clearInterval(badgeTimer);badgeTimer=null;clearInterval(watchTimer);watchTimer=null;
   if(clearRoom&&G&&G.hostId===myId&&links.length){try{pub(topic('state'),null,true);}catch(e){}}
   closeLinks();
   wantRoom=null;lastSeen={};names={};seenIds=[];queue=[];lastHost=0;
@@ -843,7 +873,7 @@ async function startHost(code,saved,name){
   roomCode=code;mode='online';
   let taken=false;
   hostProbe=()=>{taken=true;};
-  openLinks([topic('up'),topic('state')],onHostMsg);
+  openLinks([topic('up'),topic('state'),topic('hb')],onHostMsg);
   const ok=await waitUp(9000);
   if(!ok){hostProbe=null;closeLinks();mode=null;roomCode=null;throw {type:'network'};}
   if(!saved)await sleep(1800);   // ждём «чужую» запись комнаты с этим кодом
@@ -854,8 +884,10 @@ async function startHost(code,saved,name){
   G.ep=Date.now();
   ls.set('mono_room',code);ls.set('mono_role','host');
   firstRender=true;
+  lastEcho=Date.now();lastForce=0;
   hostTimer=setInterval(hostTick,4000);
   badgeTimer=setInterval(refreshRoomTag,3000);
+  watchTimer=setInterval(watchdog,3000);
   links.forEach(L=>{L.onUp=()=>{try{broadcast();}catch(e){}};});
   saveHost();render();broadcast();
 }
@@ -863,12 +895,13 @@ let hostProbe=null;
 function saveHost(){try{ls.set('mono_hs_'+roomCode,JSON.stringify(G));}catch(e){}}
 function hostTick(){
   if(!G||G.hostId!==myId)return;
-  pub(topic('hb'),{rev:G.rev,ep:G.ep,ts:Date.now()});
+  pub(topic('hb'),{rev:G.rev,seq:G.seq||0,ep:G.ep,ts:Date.now()});
   const sig=hostOnline().sort().join(',');
   if(sig!==lastOnSig){lastOnSig=sig;netChanged();}
 }
 function onHostMsg(tp,m){
   if(tp.slice(-6)==='/state'){if(hostProbe&&m&&m.S)hostProbe(m);return;}
+  if(tp.slice(-3)==='/hb'){lastEcho=Date.now();return;}
   if(!m||!m.id||!m.pid)return;
   if(seenIds.indexOf(m.id)>=0)return;
   seenIds.push(m.id);if(seenIds.length>600)seenIds.splice(0,200);
@@ -879,7 +912,7 @@ function onHostMsg(tp,m){
     lastSeen[pid]=Date.now();names[pid]=String(m.name||'Игрок').slice(0,16);
     if(G.status==='lobby'&&!P_(G,pid))queue.push({data:{t:Date.now(),actor:pid,type:'join',payload:{name:names[pid]}}});
     if(!was||Date.now()-was>14000||queue.length){pump();}
-  }else if(m.t==='intent'&&m.it&&lastSeen[pid]){
+  }else if(m.t==='intent'&&m.it&&(lastSeen[pid]||P_(G,pid))){
     lastSeen[pid]=Date.now();
     queue.push({data:{t:Date.now(),actor:pid,type:String(m.it.type||''),payload:m.it.payload||{}}});pump();
   }else if(m.t==='sync'){
@@ -887,7 +920,7 @@ function onHostMsg(tp,m){
   }
 }
 function netChanged(){if(G&&mode==='online'){render();broadcast();}}
-function broadcast(){if(G&&mode==='online'&&G.hostId===myId&&roomCode)pub(topic('state'),{S:G},true);}
+function broadcast(){if(G&&mode==='online'&&G.hostId===myId&&roomCode){G.seq=(G.seq||0)+1;pub(topic('state'),{S:G},true);}}
 function pump(){
   if(pumping||!G||G.hostId!==myId)return;
   pumping=true;
@@ -915,6 +948,7 @@ function joinRoom(code){
   links.forEach(L=>{L.onUp=()=>sendHello();});
   helloTimer=setInterval(()=>{if(anyUp())sendHello();},5000);
   badgeTimer=setInterval(refreshRoomTag,3000);
+  lastForce=0;watchTimer=setInterval(watchdog,3000);
   joinTimer=setTimeout(()=>{
     if(G||mode!=='online')return;
     failJoin(anyUp()?'Комната '+code+' не найдена. Проверьте код: хост должен быть в игре.':'Не удаётся подключиться к серверам связи. Проверьте интернет, VPN и блокировщики рекламы.');
@@ -932,11 +966,12 @@ function onGuestMsg(tp,m){
   if(!m)return;
   if(tp.slice(-6)==='/state'){
     const d=m.S;if(!d||!d.code)return;
-    if(G&&G.code===d.code&&G.ep===d.ep&&d.rev<=G.rev)return;
-    lastHost=Date.now();G=d;clearTimeout(joinTimer);render();
+    lastHost=Date.now();
+    if(G&&G.code===d.code&&G.ep===d.ep&&(d.seq||0)<=(G.seq||0))return;
+    G=d;clearTimeout(joinTimer);render();
   }else if(tp.slice(-3)==='/hb'){
     lastHost=Date.now();
-    if(G&&(m.rev!==G.rev||m.ep!==G.ep)&&Date.now()-syncAt>3000){syncAt=Date.now();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
+    if(G&&(m.ep!==G.ep||(m.seq||0)>(G.seq||0))&&Date.now()-syncAt>3000){syncAt=Date.now();pub(topic('up'),{id:uid(),t:'sync',pid:myId});}
   }
 }
 async function resumeRoom(){
@@ -999,7 +1034,17 @@ function exitGame(forget){
 function leaveSubs(){teardownNet();}
 
 // ---------- события ----------
+function placeLog(){
+  try{
+    const desk=!!(window.matchMedia&&window.matchMedia('(min-aspect-ratio:1/1) and (min-width:1200px)').matches);
+    const lc=$('#logcard'),lf=$('#leftcol'),sd=$('#side');
+    if(!lc||!lf||!sd)return;
+    if(desk){if(lc.parentNode!==lf)lf.appendChild(lc);}
+    else if(lc.parentNode!==sd)sd.appendChild(lc);
+  }catch(e){}
+}
 function bindUI(){
+  window.addEventListener('resize',placeLog);placeLog();
   $('#bCreate').onclick=createRoom;
   $('#bJoin').onclick=()=>joinRoom($('#inCode').value);
   $('#inCode').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom($('#inCode').value);});
@@ -1043,6 +1088,7 @@ function onClick(e){
       applyIntent(G,{actor:id,type:'join',payload:{name:n}});G.rev++;render();break;}
     case 'draft':openDraft();break;
     case 'tradefor':{const o=G.props[+v]&&G.props[+v].owner;if(o)openDraft({to:o,gp:[],tp:[+v],gc:0,tc:0});break;}
+    case 'resync':wake();flash('Обновляю связь…',2500);break;
     case 'tab':tab=v;render();break;
     case 'spot':{spotId=v;paintTokens();clearTimeout(spotT);spotT=setTimeout(()=>{spotId=null;paintTokens();},2800);break;}
     case 'manage':manageOpen=true;renderManage();break;
@@ -1164,6 +1210,7 @@ function tradeSummary(t){
 
 // ---------- рендер ----------
 function render(){
+  placeLog();
   if(mode==='online'&&G&&G.hostId===myId)G.online=hostOnline();
   if(!G){
     if(mode==='online'){show('entry');}
@@ -1284,10 +1331,7 @@ function paintTokens(){
     // якорь: нижний (или верхний) край клетки, чтобы не закрывать название
     let ax,ay,uw;
     if(corner){ax=R.x0+R.w/2;ay=R.y0+R.h*.72;uw=R.w*.85;}
-    else if(side==='b'){ax=R.x0+R.w/2;ay=R.y0+R.h-2.2;uw=R.w-.4;}
-    else if(side==='t'){ax=R.x0+R.w/2;ay=R.y0+2.2;uw=R.w-.4;}
-    else if(side==='l'){ax=R.x0+R.w*.78/2;ay=R.y0+R.h-2.2;uw=R.w*.78-.4;}
-    else{ax=R.x0+R.w*.22+R.w*.78/2;ay=R.y0+R.h-2.2;uw=R.w*.78-.4;}
+    else{ax=R.x0+R.w/2;ay=R.y0+R.h-2.0;uw=R.w-.4;}
     const rows=n>3?2:1,cnt=[rows===2?Math.ceil(n/2):n,Math.floor(n/2)];
     list.forEach((p,k)=>{
       alivIds[p.id]=1;
@@ -1297,7 +1341,6 @@ function paintTokens(){
       const x=ax+(idx-(c-1)/2)*step;
       let y=ay;
       if(corner)y=ay+(r-(rows-1)/2)*d;
-      else if(side==='t')y=ay+r*d;
       else y=ay-r*d;
       const sz=isCur?d+.4:d;
       let t=tokEls[p.id];
@@ -1321,10 +1364,18 @@ function renderBoard(){
   const S=G;let h='';
   for(let i=0;i<40;i++){
     const sq=B[i],[r,c]=cellOf(i),side=sideOf(i),x=S.props[i];
-    let band='',body='';
+    const own=OWNABLE.indexOf(sq.t)>=0;
+    let band='',body='',tile='';
     const nm=`<b class="nm">${esc(sq.n)}</b><b class="sn">${esc(SHORT[i]||sq.n)}</b>`;
-    if(sq.t==='prop'){band=`<div class="band" style="background:${G_COL[sq.g]}">${houseHTML(x.houses)}</div>`;body=`${nm}<span class="pr">$${sq.p}</span>`;}
-    else if(sq.t==='rail'||sq.t==='util')body=`${nm}<span class="pr">$${sq.p}</span>`;
+    if(own){
+      const gc=sq.t==='prop'?G_COL[sq.g]:(sq.t==='rail'?'#3b4252':'#5d7188');
+      const ink=(sq.t==='prop'&&(sq.g==='lblue'||sq.g==='yellow'))?'#1d1d1b':'#ffffff';
+      const ow=x&&x.owner?P_(S,x.owner):null;
+      const bandBg=ow?ow.color:`color-mix(in srgb,${gc} 68%,#ffffff)`;
+      band=`<div class="band" style="background:${bandBg};color:${ow?'#ffffff':ink}">${x.houses>0?houseHTML(x.houses):'<span class="bp">$'+sq.p+'</span>'}</div>`;
+      body=nm;
+      tile=`background:${gc};color:${ink};`;
+    }
     else if(sq.t==='chance')body=`<b class="lbl">Шанс</b>`;
     else if(sq.t==='chest')body=`<b class="lbl">Казна</b>`;
     else if(sq.t==='tax')body=`<b class="nm">${esc(sq.n)}</b><b class="sn">Налог</b><span class="pr">$${sq.p}</span>`;
@@ -1333,8 +1384,7 @@ function renderBoard(){
     else if(sq.t==='park')body=`<b class="lbl">ПАРКОВКА</b>`;
     else if(sq.t==='gojail')body=`<b class="lbl">В ТЮРЬМУ</b>`;
     const here=S.status==='playing'&&curP(S).pos===i;
-    const owner=x&&x.owner?P_(S,x.owner):null;
-    h+=`<div class="sq ${side} ${TCLS[sq.t]||''} ${x&&x.mort?'mort':''} ${here?'here':''}" data-a="sq" data-v="${i}" style="grid-row:${r};grid-column:${c};${owner?`box-shadow:inset 0 0 0 .35em ${owner.color}`:''}">${band}<div class="sbody">${body}</div></div>`;
+    h+=`<div class="sq ${side} ${own?'own':''} ${TCLS[sq.t]||''} ${x&&x.mort?'mort':''} ${here?'here':''}" data-a="sq" data-v="${i}" style="grid-row:${r};grid-column:${c};${tile}">${band}<div class="sbody">${body}</div></div>`;
   }
   const last=S.log.length?S.log[S.log.length-1]:'';
   h+=`<div class="center"><div class="logo">Монополия</div><div class="dice" id="dice">${dieHTML(S.dice[0])}${dieHTML(S.dice[1])}</div><div class="lastlog">${esc(last)}</div></div>`;
@@ -1595,7 +1645,9 @@ function scheduleBots(){
     act(s2.type,s2.payload,s2.actor);
   },750);
 }
-document.addEventListener('visibilitychange',()=>{try{if(!document.hidden&&mode==='online'&&G&&G.hostId!==myId)sendHello();}catch(e){}});
+document.addEventListener('visibilitychange',()=>{try{if(document.hidden){hiddenAt=Date.now();}else if(mode==='online'&&G){if(Date.now()-hiddenAt>4000)wake();else if(G.hostId!==myId)sendHello();}}catch(e){}});
+window.addEventListener('online',()=>{try{wake();}catch(e){}});
+window.addEventListener('pageshow',e=>{try{if(e&&e.persisted)wake();}catch(x){}});
 window.addEventListener('error',e=>{try{flash('Ошибка в игре: '+(e.message||'неизвестно'),8000);}catch(x){}});
 init();
 </script>
