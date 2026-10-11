@@ -249,6 +249,7 @@ table.rent td:last-child{text-align:right;font-weight:700}
     <hr>
     <button id="bLocal" class="btn ghost" style="width:100%">Играть на одном устройстве (по очереди)</button>
     <p id="netNote" class="note">Подключаюсь к сервису…</p>
+    <button class="btn ghost" data-a="nettest" style="width:100%">Проверить связь с серверами</button>
   </div>
 </section>
 
@@ -766,7 +767,7 @@ function flash(msg,ms){
 function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);});}
 
 // ---------- сеть: ретрансляция через публичные MQTT-брокеры (WebSocket, работает за NAT) ----------
-const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
+const BROKERS=['wss://mqtt.eclipseprojects.io:443/mqtt','wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
 let links=[],hostTimer=null,helloTimer=null,joinTimer=null,badgeTimer=null;
 let lastEcho=0,lastForce=0,hiddenAt=0,watchTimer=null,QUIET_MS=30000,FORCE_GAP=45000,FLAP_N=3,FLAP_WIN=180000;
 let netStats={forced:0,wakes:0,flapUntil:0,forcedAt:[]};
@@ -792,6 +793,29 @@ function netBadge(){
   if(mode!=='online'||!G)return '';
   if(G.hostId===myId)return '<span class="badge" data-a="netinfo" style="cursor:pointer" title="Состояние связи">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>'+(anyUp()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
   return '<span class="badge" data-a="netinfo" style="cursor:pointer" title="Состояние связи">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>'+(hostLinked()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
+}
+let lastNetTest='';
+function showNetTest(){
+  const rows=BROKERS.map(u=>({u,s:'проверяю…'}));
+  const label=u=>u.replace(/^wss:\/\//,'').replace(/\/mqtt$/,'');
+  const draw=()=>{
+    lastNetTest=rows.map(r=>label(r.u)+': '+r.s).join('\n');
+    $('#infoBox').innerHTML='<div class="modalbg" data-a="close"><div class="modal"><h3>Проверка связи</h3><p class="note" style="margin-top:0">Проверяю, открываются ли серверы связи из вашей сети. Если везде «не открывается», обычно мешает VPN, фаервол или блокировщик. Достаточно, чтобы открылся хотя бы один.</p>'
+      +rows.map(r=>'<div class="prow"><span class="pn">'+esc(label(r.u))+'</span><span class="badge">'+esc(r.s)+'</span></div>').join('')
+      +'<div class="btns" style="justify-content:flex-end"><button class="btn" data-a="nettest">Повторить</button><button class="btn" data-a="nettestcopy">Копировать</button><button class="btn primary" data-a="close">Закрыть</button></div></div></div>';
+  };
+  draw();
+  rows.forEach(r=>{
+    const t0=Date.now();let done=false;
+    const fin=t=>{if(done)return;done=true;r.s=t;draw();};
+    try{
+      const ws=new WebSocket(r.u,'mqtt');
+      const to=setTimeout(()=>{fin('нет ответа за 7 с');try{ws.close();}catch(e){}},7000);
+      ws.onopen=()=>{clearTimeout(to);fin('доступен, '+(Date.now()-t0)+' мс');try{ws.close();}catch(e){}};
+      ws.onerror=()=>{clearTimeout(to);fin('не открывается');};
+      ws.onclose=()=>{if(!done){clearTimeout(to);fin('соединение закрыто');}};
+    }catch(e){fin('ошибка: '+String((e&&e.message)||e));}
+  });
 }
 function netReport(){
   const now=Date.now(),host=G&&G.hostId===myId,L=[];
@@ -972,7 +996,7 @@ function joinRoom(code){
   lastForce=0;watchTimer=setInterval(watchdog,3000);
   joinTimer=setTimeout(()=>{
     if(G||mode!=='online')return;
-    failJoin(anyUp()?'Комната '+code+' не найдена. Проверьте код: хост должен быть в игре.':'Не удаётся подключиться к серверам связи. Проверьте интернет, VPN и блокировщики рекламы.');
+    const up=anyUp();failJoin(up?'Комната '+code+' не найдена. Проверьте код: хост должен быть в игре.':'Не удаётся подключиться к серверам связи. Проверьте интернет, VPN и блокировщики рекламы.');if(!up)showNetTest();
   },9000);
 }
 function failJoin(msg){
@@ -1014,7 +1038,7 @@ async function createRoom(){
     try{await startHost(code,null,name);return;}
     catch(e){
       if(e&&e.type==='unavailable-id')continue;
-      flash(e&&e.type==='network'?'Нет связи с серверами. Проверьте интернет, VPN и блокировщики рекламы.':'Сетевая ошибка: '+((e&&e.message)||'неизвестно'),8000);return;
+      flash(e&&e.type==='network'?'Нет связи с серверами. Проверьте интернет, VPN и блокировщики рекламы.':'Сетевая ошибка: '+((e&&e.message)||'неизвестно'),8000);if(e&&e.type==='network')showNetTest();return;
     }
   }
   flash('Не удалось подобрать свободный код комнаты');
@@ -1111,6 +1135,8 @@ function onClick(e){
     case 'tradefor':{const o=G.props[+v]&&G.props[+v].owner;if(o)openDraft({to:o,gp:[],tp:[+v],gc:0,tc:0});break;}
     case 'resync':wake();flash('Обновляю связь…',2500);break;
     case 'netinfo':showNetInfo();break;
+    case 'nettest':showNetTest();break;
+    case 'nettestcopy':try{navigator.clipboard.writeText(lastNetTest);flash('Скопировано');}catch(err){flash('Выделите и скопируйте вручную',4000);}break;
     case 'netcopy':{let t='';try{t=netReport();navigator.clipboard.writeText(t);flash('Отчёт скопирован');}catch(err){flash('Выделите текст и скопируйте вручную',4000);}break;}
     case 'tab':tab=v;render();break;
     case 'spot':{spotId=v;paintTokens();clearTimeout(spotT);spotT=setTimeout(()=>{spotId=null;paintTokens();},2800);break;}
