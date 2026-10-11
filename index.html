@@ -768,7 +768,8 @@ function show(id){['entry','lobby','game'].forEach(x=>{$('#'+x).hidden=(x!==id);
 // ---------- сеть: ретрансляция через публичные MQTT-брокеры (WebSocket, работает за NAT) ----------
 const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081'];
 let links=[],hostTimer=null,helloTimer=null,joinTimer=null,badgeTimer=null;
-let lastEcho=0,lastForce=0,hiddenAt=0,watchTimer=null,QUIET_MS=13000,FORCE_GAP=10000;
+let lastEcho=0,lastForce=0,hiddenAt=0,watchTimer=null,QUIET_MS=30000,FORCE_GAP=45000,FLAP_N=3,FLAP_WIN=180000;
+let netStats={forced:0,wakes:0,flapUntil:0,forcedAt:[]};
 let wantRoom=null,guestName='',lastHost=0,seenIds=[],lastSeen={},names={},syncAt=0,lastOnSig='';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const topic=k=>'monoru/v2/'+(roomCode||wantRoom)+'/'+k;
@@ -781,16 +782,29 @@ function getPid(){
 function anyUp(){return links.some(l=>l.up);}
 function hostOnline(){
   const now=Date.now();
-  return [myId].concat(Object.keys(lastSeen).filter(pid=>pid!==myId&&now-lastSeen[pid]<14000));
+  return [myId].concat(Object.keys(lastSeen).filter(pid=>pid!==myId&&now-lastSeen[pid]<45000));
 }
 function isOffline(p){
   return mode==='online'&&G&&!p.bot&&p.id!==myId&&G.online&&G.online.indexOf(p.id)<0;
 }
-function hostLinked(){return anyUp()&&Date.now()-lastHost<15000;}
+function hostLinked(){return anyUp()&&Date.now()-lastHost<30000;}
 function netBadge(){
   if(mode!=='online'||!G)return '';
-  if(G.hostId===myId)return '<span class="badge">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>'+(anyUp()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
-  return '<span class="badge">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>'+(hostLinked()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
+  if(G.hostId===myId)return '<span class="badge" data-a="netinfo" style="cursor:pointer" title="Состояние связи">'+(anyUp()?'<i class="dot on"></i>':'<i class="dot off"></i>')+' хост · игроков в сети: '+hostOnline().length+'</span>'+(anyUp()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
+  return '<span class="badge" data-a="netinfo" style="cursor:pointer" title="Состояние связи">'+(hostLinked()?'<i class="dot on"></i> подключено':(anyUp()?'<i class="dot off"></i> хост не отвечает…':'<i class="dot off"></i> нет связи…'))+'</span>'+(hostLinked()?'':' <button class="btn sm" data-a="resync">Обновить связь</button>');
+}
+function netReport(){
+  const now=Date.now(),host=G&&G.hostId===myId,L=[];
+  L.push('Роль: '+(mode!=='online'?'—':(host?'хост':'гость'))+' · комната '+(roomCode||'—'));
+  if(mode==='online'&&!host)L.push('Сигнал от хоста: '+(lastHost?Math.round((now-lastHost)/1000)+' с назад':'не было'));
+  if(G)L.push('Состояние: ход '+G.rev+', рассылка '+(G.seq||0)+', игроков в сети: '+(G.online?G.online.length:'?'));
+  links.forEach(k=>L.push(k.url.replace(/^wss:\/\//,'').replace(/\/mqtt$/,'')+': '+(k.up?'на связи':'нет связи')+' · подключений '+k.st.opens+', обрывов '+k.st.closes+', ошибок '+k.st.errs+(k.st.last?' ('+k.st.last+')':'')));
+  L.push('Принудительных переподключений: '+netStats.forced+', пробуждений: '+netStats.wakes+(now<netStats.flapUntil?' · пауза защиты от зацикливания':''));
+  try{L.push('Вкладка: '+(document.hidden?'в фоне':'активна')+' · '+String(navigator.userAgent||'').slice(0,90));}catch(e){}
+  return L.join('\n');
+}
+function showNetInfo(){
+  $('#infoBox').innerHTML='<div class="modalbg" data-a="close"><div class="modal"><h3>Состояние связи</h3><pre id="netrep" style="white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:0;user-select:all">'+esc(netReport())+'</pre><div class="btns" style="justify-content:flex-end"><button class="btn" data-a="resync">Обновить связь</button><button class="btn" data-a="netcopy">Копировать</button><button class="btn primary" data-a="close">Закрыть</button></div></div></div>';
 }
 function refreshRoomTag(){
   if(mode!=='online'||!G)return;
@@ -799,13 +813,13 @@ function refreshRoomTag(){
 function openLinks(subs,onMsg){
   closeLinks();
   links=BROKERS.map(url=>{
-    const L={url,up:false,cli:null};
+    const L={url,up:false,cli:null,st:{opens:0,closes:0,errs:0,last:''}};
     try{
-      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:2000,connectTimeout:8000,keepalive:15});
-      L.cli.on('connect',()=>{L.up=true;subs.forEach(t=>L.cli.subscribe(t,{qos:1}));if(L.onUp)L.onUp();});
-      L.cli.on('close',()=>{L.up=false;});
+      L.cli=mqtt.connect(url,{clientId:'mono_'+uid(),clean:true,reconnectPeriod:3000,connectTimeout:8000,keepalive:30});
+      L.cli.on('connect',()=>{L.up=true;L.st.opens++;subs.forEach(t=>L.cli.subscribe(t,{qos:1}));if(L.onUp)L.onUp();});
+      L.cli.on('close',()=>{L.up=false;L.st.closes++;});
       L.cli.on('offline',()=>{L.up=false;});
-      L.cli.on('error',()=>{});
+      L.cli.on('error',e=>{L.st.errs++;L.st.last=String((e&&e.message)||e||'').slice(0,60);});
       L.cli.on('message',(tp,buf)=>{let m=null;try{m=JSON.parse(buf.toString());}catch(e){return;}onMsg(tp,m);});
     }catch(e){}
     return L;
@@ -825,18 +839,25 @@ function waitUp(ms){
   });
 }
 function forceReconnect(){
+  netStats.forced++;
   links.forEach(L=>{try{if(L.cli&&L.cli.reconnect){L.up=false;L.cli.reconnect();}}catch(e){}});
 }
 function watchdog(){
   if(mode!=='online'||!G)return;
+  try{if(document.hidden)return;}catch(e){}
   const now=Date.now(),host=G.hostId===myId;
+  if(now<netStats.flapUntil||now-lastForce<FORCE_GAP)return;
   const quiet=host?(now-lastEcho>QUIET_MS):(now-lastHost>QUIET_MS);
-  const gap=now-lastForce>FORCE_GAP;
-  if(gap&&((anyUp()&&quiet)||!anyUp())){lastForce=now;forceReconnect();}
+  if(anyUp()&&quiet){
+    lastForce=now;
+    netStats.forcedAt=netStats.forcedAt.filter(t=>now-t<FLAP_WIN);netStats.forcedAt.push(now);
+    if(netStats.forcedAt.length>FLAP_N){netStats.flapUntil=now+FLAP_WIN;return;}   // защита от зацикливания
+    forceReconnect();
+  }
 }
 function wake(){
   if(mode!=='online'||!G)return;
-  lastForce=Date.now();forceReconnect();
+  netStats.wakes++;lastForce=Date.now();forceReconnect();
   setTimeout(()=>{
     if(mode!=='online'||!G)return;
     if(G.hostId===myId)broadcast();
@@ -911,7 +932,7 @@ function onHostMsg(tp,m){
     const was=lastSeen[pid];
     lastSeen[pid]=Date.now();names[pid]=String(m.name||'Игрок').slice(0,16);
     if(G.status==='lobby'&&!P_(G,pid))queue.push({data:{t:Date.now(),actor:pid,type:'join',payload:{name:names[pid]}}});
-    if(!was||Date.now()-was>14000||queue.length){pump();}
+    if(!was||Date.now()-was>45000||queue.length){pump();}
   }else if(m.t==='intent'&&m.it&&(lastSeen[pid]||P_(G,pid))){
     lastSeen[pid]=Date.now();
     queue.push({data:{t:Date.now(),actor:pid,type:String(m.it.type||''),payload:m.it.payload||{}}});pump();
@@ -1089,6 +1110,8 @@ function onClick(e){
     case 'draft':openDraft();break;
     case 'tradefor':{const o=G.props[+v]&&G.props[+v].owner;if(o)openDraft({to:o,gp:[],tp:[+v],gc:0,tc:0});break;}
     case 'resync':wake();flash('Обновляю связь…',2500);break;
+    case 'netinfo':showNetInfo();break;
+    case 'netcopy':{let t='';try{t=netReport();navigator.clipboard.writeText(t);flash('Отчёт скопирован');}catch(err){flash('Выделите текст и скопируйте вручную',4000);}break;}
     case 'tab':tab=v;render();break;
     case 'spot':{spotId=v;paintTokens();clearTimeout(spotT);spotT=setTimeout(()=>{spotId=null;paintTokens();},2800);break;}
     case 'manage':manageOpen=true;renderManage();break;
